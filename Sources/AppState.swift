@@ -2090,7 +2090,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if triggerMode == .toggle {
             cancelPendingShortcutStart()
         }
-        playAlertSound(named: "Basso")
+        playAlertSound(.error)
         scheduleReadyStatusReset(after: 2, matching: ["Select text to transform first"])
     }
 
@@ -2106,7 +2106,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if triggerMode == .toggle {
             cancelPendingShortcutStart()
         }
-        playAlertSound(named: "Basso")
+        playAlertSound(.error)
         scheduleReadyStatusReset(after: 2, matching: ["Fix Edit Mode modifier"])
     }
 
@@ -2187,7 +2187,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             activeRecordingTriggerMode = nil
             currentSessionIntent = .dictation
             shortcutSessionController.reset()
-            playAlertSound(named: "Basso")
+            playAlertSound(.error)
             showScreenshotPermissionAlert(message: message)
             return false
         }
@@ -2378,7 +2378,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
                 )
             }
             overlayShown = true
-            self.playAlertSound(named: "Tink")
+            self.playAlertSound(.start)
         }
         audioRecorder.onRecordingFailure = { [weak self] error in
             DispatchQueue.main.async {
@@ -2560,10 +2560,17 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return "\(status); detected press enter command"
     }
 
+    func playAlertSound(_ sound: SukiSound) {
+        play(sound.makeSound())
+    }
+
     func playAlertSound(named name: String) {
+        play(NSSound(named: name))
+    }
+
+    private func play(_ sound: NSSound?) {
         guard alertSoundsEnabled else { return }
 
-        let sound = NSSound(named: name)
         sound?.volume = soundVolume
         sound?.play()
     }
@@ -2766,7 +2773,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         isTranscribing = true
         statusText = "Preparing audio..."
         errorMessage = nil
-        playAlertSound(named: "Pop")
+        playAlertSound(.stop)
         overlayManager.showTranscribing()
         audioRecorder.stopRecording { [weak self] fileURL in
             guard let self else { return }
@@ -3343,7 +3350,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             statusText = "Screenshot Required"
             overlayManager.dismiss()
 
-            playAlertSound(named: "Basso")
+            playAlertSound(.error)
             showScreenshotPermissionAlert(message: message)
         }
         // Non-permission errors (transient failures) — continue recording without context
