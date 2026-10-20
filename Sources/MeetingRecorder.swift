@@ -4,11 +4,7 @@ import AVFoundation
 /// Runs a meeting recording: both audio sources, chunking, transcription, and saving.
 @MainActor
 final class MeetingRecorder: ObservableObject {
-    enum Phase: Equatable {
-        case idle, starting, recording, finishing
-    }
-
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: MeetingPhase = .idle
     @Published private(set) var startedAt: Date?
     @Published private(set) var liveSegments: [MeetingSegment] = []
     /// 0...1 display level of the louder side, for the waveform.

@@ -5,6 +5,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var setupWindow: NSWindow?
     private var hubWindow: NSWindow?
     private let hubRouter = HubRouter()
+    private(set) lazy var meetingRecorder = MainActor.assumeIsolated { MeetingRecorder.live(appState: appState) }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NetworkMonitor.shared.start()
@@ -94,7 +95,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hubRouter.isSettingsPresented = true
     }
 
-    @objc private func handleShowHub() {
+    @objc private func handleShowHub(_ notification: Notification) {
+        if let section = notification.object as? HubSection {
+            hubRouter.section = section
+        }
         showHubWindow()
     }
 
@@ -112,6 +116,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let hubView = HubView()
             .environmentObject(appState)
             .environmentObject(hubRouter)
+            .environmentObject(meetingRecorder)
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1040, height: 680),

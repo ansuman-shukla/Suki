@@ -12,6 +12,10 @@ enum MeetingSpeaker: String, Codable, CaseIterable {
     }
 }
 
+enum MeetingPhase: Equatable {
+    case idle, starting, recording, finishing
+}
+
 /// One transcribed stretch of a meeting. `start` is seconds since the meeting began.
 struct MeetingSegment: Codable, Equatable, Identifiable {
     var id = UUID()
