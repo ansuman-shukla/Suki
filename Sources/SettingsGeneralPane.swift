@@ -3,9 +3,21 @@ import SwiftUI
 struct GeneralSettingsPane: View {
     @EnvironmentObject var appState: AppState
     @State private var showMutedHint = false
+    @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.defaultValue
 
     var body: some View {
         SettingsPane(title: "General") {
+            SettingsGroup("Appearance") {
+                SettingsRow("Theme", detail: appearance.title) {
+                    Picker("Theme", selection: $appearance) {
+                        ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 210)
+                }
+            }
+            .onChange(of: appearance) { $0.apply() }
             shortcutsGroup
             SettingsGroup("Microphone") {
                 microphoneRow

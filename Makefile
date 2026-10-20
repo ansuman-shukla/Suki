@@ -14,6 +14,7 @@ SOURCES = $(shell find Sources -name '*.swift' -type f | LC_ALL=C sort)
 TEST_RUNNER = $(BUILD_DIR)/SukiTests
 TEST_PRODUCTION_SOURCES = \
 	Sources/APIConfigurationDraft.swift \
+	Sources/AppAppearance.swift \
 	Sources/AppContextService.swift \
 	Sources/AppName.swift \
 	Sources/ContextInferenceFailure.swift \
