@@ -40,6 +40,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/TranscriptionProvider.swift \
 	Sources/TranscriptionService.swift \
 	Sources/UpdateManager.swift \
+	Sources/WaveformLayout.swift \
 	Sources/ShortcutCore/DictationShortcutSessionController.swift \
 	Sources/ShortcutCore/ShortcutMatcher.swift \
 	Sources/ShortcutCore/ShortcutModels.swift
