@@ -103,6 +103,7 @@ enum MeetingTranscriptionPipelineTests {
         }
         for provider in TranscriptionProvider.allCases {
             for key in ["", "  \n"] {
+                TestSupport.expect(!MeetingTranscriber.hasAPIKey(configuration(provider, key: key)), "\(provider) blank key is missing")
                 do {
                     _ = try MeetingTranscriber.make(configuration(provider, key: key))
                     TestSupport.expect(false, "\(provider) without a key must not start")
@@ -111,6 +112,7 @@ enum MeetingTranscriptionPipelineTests {
                 }
             }
         }
+        TestSupport.expect(TranscriptionProvider.allCases.allSatisfy { MeetingTranscriber.hasAPIKey(configuration($0, key: "synthetic")) }, "Any key counts")
         TestSupport.expect((try? MeetingTranscriber.make(configuration(.standard, key: "synthetic"))) is TranscriptionService, "Standard uses upload service")
         TestSupport.expect((try? MeetingTranscriber.make(configuration(.openAI, key: "synthetic"))) is TranscriptionService, "OpenAI uses upload service")
         TestSupport.expect((try? MeetingTranscriber.make(configuration(.gemini, key: "synthetic"))) is GeminiTranscriptionService, "Gemini uses its service")

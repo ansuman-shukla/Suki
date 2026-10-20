@@ -20,10 +20,12 @@ enum MeetingTranscriber {
     /// Same provider, key and model as dictation, but refuses to start without a key
     /// so a meeting never runs for minutes only to fail every chunk.
     static func make(_ configuration: TranscriptionConfiguration) throws -> SpeechToTextService {
-        guard !configuration.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw MeetingRecorderError.missingAPIKey
-        }
+        guard hasAPIKey(configuration) else { throw MeetingRecorderError.missingAPIKey }
         return try SpeechToTextServiceFactory.make(configuration)
+    }
+
+    static func hasAPIKey(_ configuration: TranscriptionConfiguration) -> Bool {
+        !configuration.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
