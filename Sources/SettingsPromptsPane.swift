@@ -239,15 +239,12 @@ struct PromptsSettingsPane: View {
                     }
                     .buttonStyle(.settings)
                 }
-                Picker("", selection: $appState.contextScreenshotMaxDimension) {
-                    ForEach(AppState.contextScreenshotDimensionOptions, id: \.self) { dimension in
-                        Text("\(dimension) px").tag(dimension)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                SukiSegmentedPicker(
+                    "Screenshot Resolution",
+                    selection: $appState.contextScreenshotMaxDimension,
+                    options: AppState.contextScreenshotDimensionOptions
+                ) { "\($0) px" }
                 .fixedSize()
-                .accessibilityLabel("Screenshot Resolution")
             }
             SettingsToggleRow(
                 "Allow full-desktop screenshot fallback",

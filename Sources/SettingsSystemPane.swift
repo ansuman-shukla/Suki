@@ -19,11 +19,12 @@ struct SystemSettingsPane: View {
                 "Meeting detection",
                 detail: "Offers to take notes when a call app starts using your microphone."
             ) {
-                Picker("Meeting detection", selection: $meetingDetection) {
-                    ForEach(MeetingDetectionMode.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                SukiSegmentedPicker(
+                    "Meeting detection",
+                    selection: $meetingDetection,
+                    options: Array(MeetingDetectionMode.allCases),
+                    label: \.title
+                )
                 .frame(width: 210)
             }
         }
