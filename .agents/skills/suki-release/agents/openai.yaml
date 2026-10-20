@@ -1,0 +1,4 @@
+interface:
+  display_name: "Suki Release"
+  short_description: "Prepare and publish Suki semver releases."
+  default_prompt: "Prepare a new Suki release."
