@@ -2,18 +2,27 @@ import SwiftUI
 
 enum HubSection: String, CaseIterable, Identifiable {
     case home
+    case meetings
+    case dictionary
+    case snippets
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .home: return "Home"
+        case .meetings: return "Meetings"
+        case .dictionary: return "Dictionary"
+        case .snippets: return "Snippets"
         }
     }
 
     var icon: String {
         switch self {
         case .home: return "mic"
+        case .meetings: return "record.circle"
+        case .dictionary: return "book.closed"
+        case .snippets: return "scissors"
         }
     }
 }

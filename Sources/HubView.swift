@@ -24,8 +24,13 @@ struct HubView: View {
     private var sectionContent: some View {
         switch router.section {
         case .home:
-            Text("Home")
-                .font(SukiFont.display(28))
+            HomeView()
+        case .meetings:
+            MeetingsView()
+        case .dictionary:
+            DictionaryView()
+        case .snippets:
+            SnippetsView()
         }
     }
 }
