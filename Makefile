@@ -21,6 +21,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/GeminiLiveTranscriptionService.swift \
 	Sources/GeminiTranscriptionService.swift \
 	Sources/GlobalShortcutBackend.swift \
+	Sources/HomeCopy.swift \
 	Sources/HomeHistoryGrouping.swift \
 	Sources/LLMAPITransport.swift \
 	Sources/LLMCooldownManager.swift \
