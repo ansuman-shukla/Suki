@@ -28,6 +28,11 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/LiveTranscriptionProvider.swift \
 	Sources/LiveTranscriptionSession.swift \
 	Sources/LiveTypingCore.swift \
+	Sources/MeetingAudioCapture.swift \
+	Sources/MeetingRecorder.swift \
+	Sources/MeetingStore.swift \
+	Sources/MeetingTranscriptCore.swift \
+	Sources/MeetingTranscriptionPipeline.swift \
 	Sources/ModelConfiguration.swift \
 	Sources/ModifierKeyEventState.swift \
 	Sources/PipelineHistoryItem.swift \
