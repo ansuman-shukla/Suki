@@ -314,7 +314,7 @@ struct SettingsView: View {
 
     private var groups: [SettingsSidebarGroup] {
         [
-            SettingsSidebarGroup(title: "Settings", pages: [.general, .system, .prompts, .macros]),
+            SettingsSidebarGroup(title: "Settings", pages: [.general, .system, .transcription, .prompts, .macros]),
             SettingsSidebarGroup(title: "Advanced", pages: AppBuild.isDevBundle ? [.runLog, .debug] : [.runLog]),
         ]
     }
@@ -341,6 +341,8 @@ struct SettingsView: View {
                 GeneralSettingsView()
             case .system:
                 SystemSettingsPane()
+            case .transcription:
+                TranscriptionSettingsPane()
             case .prompts:
                 PromptsSettingsView()
             case .macros:
@@ -376,7 +378,7 @@ private extension SettingsPage {
 
     var tab: SettingsTab {
         switch self {
-        case .general, .system: return .general
+        case .general, .system, .transcription: return .general
         case .prompts: return .prompts
         case .macros: return .macros
         case .runLog: return .runLog
@@ -432,11 +434,6 @@ struct DebugSettingsView: View {
 
 struct GeneralSettingsView: View {
     @EnvironmentObject var appState: AppState
-    @State private var apiDraft = APIConfigurationDraft()
-    @State private var advancedProviderSettingsExpanded = false
-    @State private var isValidatingKey = false
-    @State private var keyValidationError: String?
-    @State private var successfulAPIConfiguration: ValidatedAPIConfiguration?
     @State private var customVocabularyInput: String = ""
     @FocusState private var customVocabularyFocused: Bool
     @State private var showMutedHint = false
@@ -499,15 +496,6 @@ struct GeneralSettingsView: View {
                 .padding(.top, 4)
                 .padding(.bottom, 4)
 
-                SettingsCard("API Key", icon: "key.fill") {
-                    apiKeySection
-                }
-                SettingsCard("Transcription", icon: "text.bubble") {
-                    TranscriptionSettingsView()
-                }
-                SettingsCard("Live Transcription", icon: "waveform") {
-                    LiveTranscriptionSettingsView()
-                }
                 SettingsCard("Output Language", icon: "globe") {
                     outputLanguageSection
                 }
@@ -516,12 +504,6 @@ struct GeneralSettingsView: View {
                 }
                 SettingsCard("Audio During Dictation", icon: "speaker.slash.fill") {
                     dictationAudioSection
-                }
-                SettingsCard("Edit Mode", icon: "pencil") {
-                    commandModeSection
-                }
-                SettingsCard("Cleanup", icon: "sparkles") {
-                    cleanupSection
                 }
                 SettingsCard("Microphone", icon: "mic.fill") {
                     microphoneSection
@@ -539,28 +521,10 @@ struct GeneralSettingsView: View {
             .padding(24)
         }
         .onAppear {
-            apiDraft.present(appState.committedAPIConfiguration)
-            isValidatingKey = false
-            keyValidationError = nil
-            successfulAPIConfiguration = nil
             customVocabularyInput = appState.customVocabulary
         }
         .onDisappear {
-            apiDraft.dismiss()
             commitCustomVocabulary()
-        }
-        .onChange(of: appState.committedAPIConfiguration) { saved in
-            apiDraft.reconcile(saved)
-            keyValidationError = nil
-            if successfulAPIConfiguration != saved {
-                successfulAPIConfiguration = nil
-            }
-        }
-        .onChange(of: apiDraft.configuration) { value in
-            keyValidationError = nil
-            if successfulAPIConfiguration != value {
-                successfulAPIConfiguration = nil
-            }
         }
     }
 
@@ -609,96 +573,6 @@ struct GeneralSettingsView: View {
         }
         copiedBuildInfoResetWorkItem = resetWorkItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: resetWorkItem)
-    }
-
-    // MARK: API Key
-
-    private var apiKeySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("\(AppName.displayName) uses the configured transcription model with your selected OpenAI-compatible provider.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 8) {
-                SecureField("Enter your Groq API key", text: $apiDraft.apiKey)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .disabled(isValidatingKey)
-
-                Button(isValidatingKey ? "Validating..." : "Save") {
-                    validateAndSaveKey()
-                }
-                .disabled(apiDraft.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isValidatingKey)
-            }
-
-            if let error = keyValidationError {
-                Label(error, systemImage: "xmark.circle.fill")
-                    .foregroundStyle(.red)
-                    .font(.caption)
-            } else if apiDraft.showsSavedSuccess(successfulAPIConfiguration, committed: appState.committedAPIConfiguration) {
-                Label("API key saved", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.caption)
-            }
-
-            DisclosureGroup(isExpanded: $advancedProviderSettingsExpanded) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Divider()
-                    ProviderSettingsFields(
-                        apiBaseURLInput: $apiDraft.baseURL,
-                        transcriptionAPIURLInput: $apiDraft.transcriptionAPIURL,
-                        transcriptionAPIKeyInput: $apiDraft.transcriptionAPIKey,
-                        showsModelDescription: false
-                    )
-                }
-            } label: {
-                HStack {
-                    Text("Advanced Provider Settings")
-                    Spacer()
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    advancedProviderSettingsExpanded.toggle()
-                }
-            }
-            .padding(.top, 4)
-        }
-    }
-
-    private func validateAndSaveKey() {
-        guard !isValidatingKey else { return }
-        let submission = apiDraft.submission
-        isValidatingKey = true
-        keyValidationError = nil
-        successfulAPIConfiguration = nil
-
-        Task { @MainActor in
-            var accepted: ValidatedAPIConfiguration?
-            let valid = await APIConfigurationSaveFlow.validateAndApply(
-                apiKey: submission.configuration.apiKey,
-                baseURL: submission.configuration.baseURL,
-                transcriptionAPIURL: submission.configuration.transcriptionAPIURL,
-                transcriptionAPIKey: submission.configuration.transcriptionAPIKey
-            ) { configuration in
-                if apiDraft.accept(configuration, for: submission) {
-                    accepted = configuration
-                }
-                appState.updateAPIConfiguration(
-                    apiKey: configuration.apiKey,
-                    baseURL: configuration.baseURL,
-                    transcriptionAPIURL: configuration.transcriptionAPIURL,
-                    transcriptionAPIKey: configuration.transcriptionAPIKey
-                )
-            }
-            guard apiDraft.isCurrent(submission) else { return }
-            isValidatingKey = false
-            if valid, let accepted, apiDraft.configuration == accepted,
-               appState.committedAPIConfiguration == accepted {
-                successfulAPIConfiguration = accepted
-            } else if !valid && apiDraft.matches(submission) {
-                keyValidationError = "Validation failed. Please check your API key and provider settings, then try again."
-            }
-        }
     }
 
     // MARK: Output Language
@@ -779,84 +653,6 @@ struct GeneralSettingsView: View {
             )
 
             Text("\(AppName.displayName) restores the audio state it changed when dictation ends.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var commandModeSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Toggle("Enable Edit Mode", isOn: Binding(
-                get: { appState.isCommandModeEnabled },
-                set: { newValue in
-                    _ = appState.setCommandModeEnabled(newValue)
-                }
-            ))
-
-            Text("Transform highlighted text with a spoken instruction instead of dictating over it.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Picker("Invocation Style", selection: Binding(
-                get: { appState.commandModeStyle },
-                set: { newValue in
-                    _ = appState.setCommandModeStyle(newValue)
-                }
-            )) {
-                ForEach(CommandModeStyle.allCases) { style in
-                    Text(style.title).tag(style)
-                }
-            }
-            .pickerStyle(.segmented)
-            .disabled(!appState.isCommandModeEnabled)
-
-            Group {
-                switch appState.commandModeStyle {
-                case .automatic:
-                    Text("If text is selected, your normal dictation shortcut transforms the selection instead of dictating over it.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                case .manual:
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Hold the extra modifier together with your normal dictation shortcut to transform selected text.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Picker("Extra Modifier", selection: Binding(
-                            get: { appState.commandModeManualModifier },
-                            set: { newValue in
-                                _ = appState.setCommandModeManualModifier(newValue)
-                            }
-                        )) {
-                            ForEach(CommandModeManualModifier.allCases) { modifier in
-                                Text(modifier.title).tag(modifier)
-                            }
-                        }
-                        .disabled(!appState.isCommandModeEnabled || appState.commandModeStyle != .manual)
-                    }
-                }
-            }
-            .opacity(appState.isCommandModeEnabled ? 1 : 0.5)
-
-            if let validationMessage = appState.commandModeManualModifierValidationMessage {
-                Label(validationMessage, systemImage: "xmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-        }
-    }
-
-    // MARK: Cleanup
-
-    private var cleanupSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle("Preserve exact wording", isOn: $appState.preserveExactWording)
-
-            Text("When on, \(AppName.displayName) skips the LLM cleanup step and pastes the transcript verbatim — filler words, informal phrasing, and explicit language are all preserved. Voice macros and Edit Mode still run.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Text("If Output Language is set, the transcript is still translated into that language, but the translation is literal: no rewording, no filler removal, no reformatting.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
