@@ -33,6 +33,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/RecordingCaptureTiming.swift \
 	Sources/RecordingTimerPreference.swift \
 	Sources/ShortcutBinding.swift \
+	Sources/SukiSound.swift \
 	Sources/SyntheticKeystrokeTyper.swift \
 	Sources/TranscriptionErrorPresentationCore.swift \
 	Sources/TranscriptTextCore.swift \
