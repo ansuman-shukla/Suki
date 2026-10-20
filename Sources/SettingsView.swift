@@ -391,8 +391,6 @@ private extension SettingsPage {
 
 struct GeneralSettingsView: View {
     @EnvironmentObject var appState: AppState
-    @State private var customVocabularyInput: String = ""
-    @FocusState private var customVocabularyFocused: Bool
     @State private var showMutedHint = false
 
     private var appVersion: String {
@@ -435,17 +433,8 @@ struct GeneralSettingsView: View {
                 SettingsCard("Sound Volume", icon: "speaker.wave.2.fill") {
                     soundVolumeSection
                 }
-                SettingsCard("Custom Vocabulary", icon: "text.book.closed.fill") {
-                    vocabularySection
-                }
             }
             .padding(24)
-        }
-        .onAppear {
-            customVocabularyInput = appState.customVocabulary
-        }
-        .onDisappear {
-            commitCustomVocabulary()
         }
     }
 
@@ -610,40 +599,6 @@ struct GeneralSettingsView: View {
             if !enabled { showMutedHint = false }
         }
     }
-
-    // MARK: Custom Vocabulary
-
-    private func commitCustomVocabulary() {
-        let trimmed = customVocabularyInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        if appState.customVocabulary != trimmed {
-            appState.customVocabulary = trimmed
-        }
-    }
-
-    private var vocabularySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Words and phrases to preserve during post-processing.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            TextEditor(text: $customVocabularyInput)
-                .font(.system(.body, design: .monospaced))
-                .frame(minHeight: 80, maxHeight: 140)
-                .focused($customVocabularyFocused)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                )
-                .onChange(of: customVocabularyFocused) { focused in
-                    if !focused { commitCustomVocabulary() }
-                }
-
-            Text("Separate entries with commas, new lines, or semicolons.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
 }
 
 // MARK: - Microphone Option Row
