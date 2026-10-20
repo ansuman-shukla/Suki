@@ -1152,15 +1152,19 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return trimmed.isEmpty ? apiKey : trimmed
     }
 
-    func makeTranscriptionService() throws -> SpeechToTextService {
-        try SpeechToTextServiceFactory.make(TranscriptionConfiguration.resolve(
+    var transcriptionConfiguration: TranscriptionConfiguration {
+        TranscriptionConfiguration.resolve(
             provider: transcriptionProvider,
             providerAPIKey: transcriptionProvider.credential.flatMap { providerAPIKeys[$0] } ?? "",
             standardBaseURL: resolvedTranscriptionBaseURL,
             standardAPIKey: resolvedTranscriptionAPIKey,
             model: transcriptionModel,
             language: resolvedTranscriptionLanguage
-        ))
+        )
+    }
+
+    func makeTranscriptionService() throws -> SpeechToTextService {
+        try SpeechToTextServiceFactory.make(transcriptionConfiguration)
     }
 
     private var resolvedTranscriptionLanguage: String? {

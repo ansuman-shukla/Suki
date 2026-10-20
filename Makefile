@@ -28,6 +28,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/LiveTypingCore.swift \
 	Sources/MeetingStore.swift \
 	Sources/MeetingTranscriptCore.swift \
+	Sources/MeetingTranscriptionPipeline.swift \
 	Sources/ModelConfiguration.swift \
 	Sources/ModifierKeyEventState.swift \
 	Sources/PostProcessingService.swift \
