@@ -1,36 +1,5 @@
 import SwiftUI
 import AVFoundation
-import ServiceManagement
-
-// MARK: - Shared Helpers
-
-private struct SettingsCard<Content: View>: View {
-    let title: String
-    let icon: String
-    let content: Content
-
-    init(_ title: String, icon: String, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.icon = icon
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: icon)
-                .font(.headline)
-            content
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-        )
-    }
-}
 
 struct ProviderSettingsFields: View {
     @EnvironmentObject var appState: AppState
