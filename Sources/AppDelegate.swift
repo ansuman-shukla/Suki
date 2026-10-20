@@ -7,6 +7,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NetworkMonitor.shared.start()
+        SukiFont.registerBundled()
 
         NotificationCenter.default.addObserver(
             self,
