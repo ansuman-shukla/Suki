@@ -387,43 +387,26 @@ struct RunLogView: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Run Log")
-                        .font(.headline)
-                    Text("Stored locally. Only the \(appState.maxPipelineHistoryCount) most recent runs are kept.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                Spacer()
-                Button("Clear History") {
-                    appState.clearPipelineHistory()
-                }
-                .disabled(appState.pipelineHistory.isEmpty)
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 12)
-
-            Divider()
-
-            if appState.pipelineHistory.isEmpty {
-                VStack {
-                    Spacer()
-                    Text("No runs yet. Use dictation to populate history.")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity)
-            } else {
-                ScrollView {
-                    VStack(spacing: 12) {
-                        ForEach(appState.pipelineHistory) { item in
-                            RunLogEntryView(item: item)
-                        }
+        SettingsPane(title: "Run Log") {
+            SettingsGroup {
+                SettingsRow("History", detail: "Stored locally. Only the \(appState.maxPipelineHistoryCount) most recent runs are kept.") {
+                    Button("Clear History") {
+                        appState.clearPipelineHistory()
                     }
-                    .padding(20)
+                    .buttonStyle(.settings)
+                    .disabled(appState.pipelineHistory.isEmpty)
+                }
+            }
+            if appState.pipelineHistory.isEmpty {
+                Text("No runs yet. Use dictation to populate history.")
+                    .settingsCaptionStyle()
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 40)
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(appState.pipelineHistory) { item in
+                        RunLogEntryView(item: item)
+                    }
                 }
             }
         }
@@ -791,11 +774,11 @@ struct RunLogEntryView: View {
                 .padding(12)
             }
         }
-        .background(Color(nsColor: .textBackgroundColor))
-        .cornerRadius(10)
+        .background(Theme.card)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isError ? Color.red.opacity(0.4) : Color.secondary.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                .stroke(isError ? Theme.destructive.opacity(0.4) : Theme.border, lineWidth: 1)
         )
         .onReceive(appState.$retryingItemIDs) { ids in
             isRetrying = ids.contains(item.id)
