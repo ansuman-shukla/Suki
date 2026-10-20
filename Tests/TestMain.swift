@@ -22,6 +22,7 @@ struct SukiTests {
         GeminiLiveTranscriptionServiceTests.run()
         LiveTypingCoreTests.run()
         MeetingTranscriptCoreTests.run()
+        MeetingStoreTests.run()
         SyntheticKeystrokeTyperTests.run()
         await TranscriptionServiceTests.run()
         await APIConfigurationDraftTests.run()
