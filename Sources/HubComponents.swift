@@ -296,3 +296,104 @@ struct HubEmptyState: View {
         .padding(.vertical, 56)
     }
 }
+
+/// Rounded list row that reveals edit and delete actions on hover.
+struct HubListRow<Content: View>: View {
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+    let content: Content
+    @State private var isHovered: Bool
+
+    init(
+        isHovered: Bool = false,
+        onEdit: @escaping () -> Void,
+        onDelete: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.onEdit = onEdit
+        self.onDelete = onDelete
+        self.content = content()
+        _isHovered = State(initialValue: isHovered)
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+            HubRowActions(isVisible: isHovered, onEdit: onEdit, onDelete: onDelete)
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 7)
+        .frame(minHeight: 40)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+                .fill(isHovered ? Theme.rowHover : Theme.card)
+        )
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .animation(.suki, value: isHovered)
+    }
+}
+
+/// Plain bordered text field used inside inline editors.
+struct HubTextInput: View {
+    @Binding var text: String
+    let placeholder: String
+    var isMultiline = false
+    var autoFocus = false
+    var onSubmit: () -> Void = {}
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField(placeholder, text: $text, axis: isMultiline ? .vertical : .horizontal)
+            .textFieldStyle(.plain)
+            .font(SukiFont.ui(14))
+            .lineLimit(isMultiline ? 2...6 : 1...1)
+            .focused($isFocused)
+            .onSubmit(onSubmit)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: Radius.sm, style: .continuous).fill(Theme.panel))
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.sm, style: .continuous)
+                    .stroke(isFocused ? Theme.textTertiary : Theme.border, lineWidth: 1)
+            )
+            .task { if autoFocus { isFocused = true } }
+    }
+}
+
+/// Card wrapping an inline editor's fields with an error line and Cancel / Save buttons.
+struct HubEditorCard<Fields: View>: View {
+    let error: String?
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    @ViewBuilder let fields: Fields
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            fields
+            HStack(spacing: 8) {
+                if let error {
+                    Text(error)
+                        .font(SukiFont.ui(12))
+                        .foregroundStyle(Theme.destructive)
+                        .transition(.opacity)
+                }
+                Spacer(minLength: 0)
+                Button("Cancel", action: onCancel)
+                    .buttonStyle(HubButtonStyle(isPrimary: false, isCompact: true))
+                    .keyboardShortcut(.cancelAction)
+                Button("Save", action: onSave)
+                    .buttonStyle(HubButtonStyle(isCompact: true))
+                    .keyboardShortcut(.return, modifiers: .command)
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).fill(Theme.card))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                .stroke(Theme.border, lineWidth: 1)
+        )
+        .animation(.suki, value: error)
+    }
+}
