@@ -203,9 +203,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private let holdShortcutStorageKey = "hold_shortcut"
     private let toggleShortcutStorageKey = "toggle_shortcut"
     private let copyAgainShortcutStorageKey = "copy_again_shortcut"
+    private let meetingShortcutStorageKey = "meeting_shortcut"
     private let savedHoldCustomShortcutStorageKey = "saved_hold_custom_shortcut"
     private let savedToggleCustomShortcutStorageKey = "saved_toggle_custom_shortcut"
     private let savedCopyAgainCustomShortcutStorageKey = "saved_copy_again_custom_shortcut"
+    private let savedMeetingCustomShortcutStorageKey = "saved_meeting_custom_shortcut"
     private let customVocabularyStorageKey = "custom_vocabulary"
     private let transcriptionLanguageStorageKey = "transcription_language"
     private let selectedMicrophoneStorageKey = "selected_microphone_id"
@@ -366,6 +368,13 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
     }
 
+    @Published var meetingShortcut: ShortcutBinding {
+        didSet {
+            persistShortcut(meetingShortcut, key: meetingShortcutStorageKey)
+            restartHotkeyMonitoring()
+        }
+    }
+
     @Published private(set) var savedHoldCustomShortcut: ShortcutBinding? {
         didSet {
             persistOptionalShortcut(savedHoldCustomShortcut, key: savedHoldCustomShortcutStorageKey)
@@ -381,6 +390,12 @@ final class AppState: ObservableObject, @unchecked Sendable {
     @Published private(set) var savedCopyAgainCustomShortcut: ShortcutBinding? {
         didSet {
             persistOptionalShortcut(savedCopyAgainCustomShortcut, key: savedCopyAgainCustomShortcutStorageKey)
+        }
+    }
+
+    @Published private(set) var savedMeetingCustomShortcut: ShortcutBinding? {
+        didSet {
+            persistOptionalShortcut(savedMeetingCustomShortcut, key: savedMeetingCustomShortcutStorageKey)
         }
     }
 
@@ -690,7 +705,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let shortcuts = Self.loadShortcutConfiguration(
             holdKey: holdShortcutStorageKey,
             toggleKey: toggleShortcutStorageKey,
-            copyAgainKey: copyAgainShortcutStorageKey
+            copyAgainKey: copyAgainShortcutStorageKey,
+            meetingKey: meetingShortcutStorageKey
         )
         let savedHoldCustomShortcut = Self.loadSavedCustomShortcut(
             forKey: savedHoldCustomShortcutStorageKey,
@@ -703,6 +719,10 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let savedCopyAgainCustomShortcut = Self.loadSavedCustomShortcut(
             forKey: savedCopyAgainCustomShortcutStorageKey,
             fallback: shortcuts.copyAgain.isCustom ? shortcuts.copyAgain : nil
+        )
+        let savedMeetingCustomShortcut = Self.loadSavedCustomShortcut(
+            forKey: savedMeetingCustomShortcutStorageKey,
+            fallback: shortcuts.meeting.isCustom ? shortcuts.meeting : nil
         )
         let customVocabulary = UserDefaults.standard.string(forKey: customVocabularyStorageKey) ?? ""
         let transcriptionLanguage = Self.normalizeTranscriptionLanguage(
@@ -814,9 +834,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
         self.holdShortcut = shortcuts.hold
         self.toggleShortcut = shortcuts.toggle
         self.copyAgainShortcut = shortcuts.copyAgain
+        self.meetingShortcut = shortcuts.meeting
         self.savedHoldCustomShortcut = savedHoldCustomShortcut.binding
         self.savedToggleCustomShortcut = savedToggleCustomShortcut.binding
         self.savedCopyAgainCustomShortcut = savedCopyAgainCustomShortcut.binding
+        self.savedMeetingCustomShortcut = savedMeetingCustomShortcut.binding
         self.isCommandModeEnabled = isCommandModeEnabled
         self.commandModeStyle = commandModeStyle
         self.commandModeManualModifier = commandModeManualModifier
@@ -868,6 +890,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if shortcuts.didUpdateCopyAgainStoredValue {
             persistShortcut(shortcuts.copyAgain, key: copyAgainShortcutStorageKey)
         }
+        if shortcuts.didUpdateMeetingStoredValue {
+            persistShortcut(shortcuts.meeting, key: meetingShortcutStorageKey)
+        }
         if savedHoldCustomShortcut.didUpdateStoredValue {
             persistOptionalShortcut(savedHoldCustomShortcut.binding, key: savedHoldCustomShortcutStorageKey)
         }
@@ -876,6 +901,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
         if savedCopyAgainCustomShortcut.didUpdateStoredValue {
             persistOptionalShortcut(savedCopyAgainCustomShortcut.binding, key: savedCopyAgainCustomShortcutStorageKey)
+        }
+        if savedMeetingCustomShortcut.didUpdateStoredValue {
+            persistOptionalShortcut(savedMeetingCustomShortcut.binding, key: savedMeetingCustomShortcutStorageKey)
         }
 
         overlayManager.onStopButtonPressed = { [weak self] in
@@ -928,9 +956,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let hold: ShortcutBinding
         let toggle: ShortcutBinding
         let copyAgain: ShortcutBinding
+        let meeting: ShortcutBinding
         let didUpdateHoldStoredValue: Bool
         let didUpdateToggleStoredValue: Bool
         let didUpdateCopyAgainStoredValue: Bool
+        let didUpdateMeetingStoredValue: Bool
     }
 
     private struct StoredOptionalShortcut {
@@ -982,7 +1012,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private static func loadShortcutConfiguration(
         holdKey: String,
         toggleKey: String,
-        copyAgainKey: String
+        copyAgainKey: String,
+        meetingKey: String
     ) -> StoredShortcutConfiguration {
         let legacyPreset = ShortcutPreset(
             rawValue: UserDefaults.standard.string(forKey: "hotkey_option") ?? ShortcutPreset.fnKey.rawValue
@@ -992,13 +1023,16 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let storedHold = loadShortcut(forKey: holdKey)
         let storedToggle = loadShortcut(forKey: toggleKey)
         let storedCopyAgain = loadShortcut(forKey: copyAgainKey)
+        let storedMeeting = loadShortcut(forKey: meetingKey)
         return StoredShortcutConfiguration(
             hold: storedHold.binding ?? hold,
             toggle: storedToggle.binding ?? toggle,
             copyAgain: storedCopyAgain.binding ?? .disabled,
+            meeting: storedMeeting.binding ?? .disabled,
             didUpdateHoldStoredValue: storedHold.binding == nil || storedHold.didNormalize,
             didUpdateToggleStoredValue: storedToggle.binding == nil || storedToggle.didNormalize,
-            didUpdateCopyAgainStoredValue: storedCopyAgain.didNormalize
+            didUpdateCopyAgainStoredValue: storedCopyAgain.didNormalize,
+            didUpdateMeetingStoredValue: storedMeeting.didNormalize
         )
     }
 
@@ -1618,7 +1652,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     }
 
     var usesFnShortcut: Bool {
-        holdShortcut.usesFnKey || toggleShortcut.usesFnKey || copyAgainShortcut.usesFnKey
+        holdShortcut.usesFnKey || toggleShortcut.usesFnKey || copyAgainShortcut.usesFnKey || meetingShortcut.usesFnKey
     }
 
     var hasEnabledHoldShortcut: Bool {
@@ -1658,6 +1692,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
             return savedToggleCustomShortcut
         case .copyAgain:
             return savedCopyAgainCustomShortcut
+        case .meeting:
+            return savedMeetingCustomShortcut
         }
     }
 
@@ -1721,6 +1757,22 @@ final class AppState: ObservableObject, @unchecked Sendable {
             }
         }
 
+        if role != .meeting, binding.conflicts(with: meetingShortcut) {
+            return "This shortcut is already used by Record Meeting."
+        }
+        if role == .meeting {
+            if binding.conflicts(with: holdShortcut) {
+                return "Record Meeting cannot share a shortcut with Hold to Talk."
+            }
+            if binding.conflicts(with: toggleShortcut) {
+                return "Record Meeting cannot share a shortcut with Tap to Toggle."
+            }
+            if isCommandModeEnabled, commandModeStyle == .manual,
+               bindingCollides(binding, with: commandModeManualModifier) {
+                return "Record Meeting cannot share the Edit Mode modifier."
+            }
+        }
+
         switch role {
         case .hold:
             if binding.isCustom {
@@ -1737,6 +1789,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
                 savedCopyAgainCustomShortcut = binding
             }
             copyAgainShortcut = binding
+        case .meeting:
+            if binding.isCustom {
+                savedMeetingCustomShortcut = binding
+            }
+            meetingShortcut = binding
         }
 
         return nil
@@ -1762,6 +1819,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if !copyAgainBinding.isDisabled && copyAgainBinding.modifiers.contains(manualModifier) {
             return "That modifier is already part of the Paste Again shortcut."
         }
+        if !meetingShortcut.isDisabled && meetingShortcut.modifiers.contains(manualModifier) {
+            return "That modifier is already part of the Record Meeting shortcut."
+        }
         // Modifier-only bindings carry identity in keyCode, not modifiers.
         if !holdBinding.isDisabled,
            holdBinding.kind == .modifierKey,
@@ -1780,6 +1840,12 @@ final class AppState: ObservableObject, @unchecked Sendable {
            let bindingModifier = ShortcutBinding.modifier(forKeyCode: copyAgainBinding.keyCode),
            bindingModifier == manualModifier {
             return "That modifier is already the Paste Again shortcut."
+        }
+        if !meetingShortcut.isDisabled,
+           meetingShortcut.kind == .modifierKey,
+           let bindingModifier = ShortcutBinding.modifier(forKeyCode: meetingShortcut.keyCode),
+           bindingModifier == manualModifier {
+            return "That modifier is already the Record Meeting shortcut."
         }
 
         return nil
@@ -1840,6 +1906,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             hold: holdShortcut,
             toggle: toggleShortcut,
             copyAgain: copyAgainShortcut,
+            meeting: meetingShortcut,
             permittedAdditionalExactMatchModifiers: permittedAdditionalExactMatchModifiers
         )
     }
@@ -1862,6 +1929,10 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private func handleShortcutEvent(_ event: ShortcutEvent) {
         if event == .copyAgainTriggered {
             copyLastTranscriptToPasteboard()
+            return
+        }
+        if event == .meetingToggleTriggered {
+            NotificationCenter.default.post(name: .toggleMeetingRecording, object: nil)
             return
         }
 

@@ -3,6 +3,8 @@ import SwiftUI
 struct GeneralSettingsPane: View {
     @EnvironmentObject var appState: AppState
     @State private var showMutedHint = false
+    @State private var isCapturingMeetingShortcut = false
+    @State private var meetingShortcutValidationMessage: String?
     @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.defaultValue
 
     var body: some View {
@@ -47,6 +49,24 @@ struct GeneralSettingsPane: View {
                     } else {
                         appState.resumeHotkeyMonitoringAfterShortcutCapture()
                     }
+                }
+            }
+            SettingsBlock("Meeting shortcut", detail: "Starts or stops a meeting recording from any app. Off until you pick a shortcut.") {
+                ShortcutRoleSection(
+                    role: .meeting,
+                    selection: appState.meetingShortcut,
+                    validationMessage: meetingShortcutValidationMessage,
+                    isCapturing: $isCapturingMeetingShortcut,
+                    onSelect: { binding in
+                        meetingShortcutValidationMessage = appState.setShortcut(binding, for: .meeting)
+                    }
+                )
+            }
+            .onChange(of: isCapturingMeetingShortcut) { isCapturing in
+                if isCapturing {
+                    appState.suspendHotkeyMonitoringForShortcutCapture()
+                } else {
+                    appState.resumeHotkeyMonitoringAfterShortcutCapture()
                 }
             }
             SettingsBlock(

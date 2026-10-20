@@ -4,4 +4,5 @@ extension Notification.Name {
     static let showSetup = Notification.Name("showSetup")
     static let showSettings = Notification.Name("showSettings")
     static let showHub = Notification.Name("showHub")
+    static let toggleMeetingRecording = Notification.Name("toggleMeetingRecording")
 }

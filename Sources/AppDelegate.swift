@@ -30,6 +30,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: .showHub,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleToggleMeetingRecording),
+            name: .toggleMeetingRecording,
+            object: nil
+        )
 
         if !appState.hasCompletedSetup {
             showSetupWindow()
@@ -53,6 +59,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             showHubWindow()
         }
         return true
+    }
+
+    /// The meeting shortcut stays out of the way: sounds confirm start and stop, and the hub
+    /// only opens when starting fails so the error is visible.
+    @objc private func handleToggleMeetingRecording() {
+        let recorder = meetingRecorder
+        Task { @MainActor in
+            let wasActive = recorder.isActive
+            guard wasActive || !appState.isRecording else {
+                appState.playAlertSound(.error)
+                return
+            }
+            await recorder.toggle()
+            if wasActive {
+                appState.playAlertSound(.stop)
+            } else if recorder.isActive {
+                appState.playAlertSound(.start)
+            } else {
+                appState.playAlertSound(.error)
+                hubRouter.section = .meetings
+                showHubWindow()
+            }
+        }
     }
 
     @objc func handleShowSetup() {
