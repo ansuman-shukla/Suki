@@ -60,7 +60,6 @@ TEST_SOURCES = $(shell find Tests -name '*.swift' -type f | LC_ALL=C sort)
 SHELL_SCRIPTS = $(shell find .github/scripts .agents/skills -name '*.sh' -type f | LC_ALL=C sort)
 YAML_FILES = $(shell find .github -type f \( -name '*.yml' -o -name '*.yaml' \) | LC_ALL=C sort)
 RESOURCES = $(CONTENTS)/Resources
-FONT_FILES = $(shell find Resources/Fonts -type f \( -name '*.ttf' -o -name '*-OFL.txt' \) | LC_ALL=C sort)
 SOUND_FILES = $(shell find Resources/Sounds -type f -name '*.caf' | LC_ALL=C sort)
 ARCH ?= $(shell uname -m)
 
@@ -79,7 +78,7 @@ endif
 
 all: $(APP_EXECUTABLE_TARGET)
 
-$(APP_EXECUTABLE_TARGET): $(SOURCES) Info.plist $(ICON_ICNS) $(FONT_FILES) $(SOUND_FILES)
+$(APP_EXECUTABLE_TARGET): $(SOURCES) Info.plist $(ICON_ICNS) $(SOUND_FILES)
 	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES)"
 ifeq ($(ARCH),universal)
 	swiftc \
@@ -112,8 +111,6 @@ endif
 	@plutil -replace CFBundleExecutable -string "$(APP_NAME)" "$(CONTENTS)/Info.plist"
 	@plutil -replace CFBundleIdentifier -string "$(BUNDLE_ID)" "$(CONTENTS)/Info.plist"
 	@cp $(ICON_ICNS) "$(RESOURCES)/AppIcon.icns"
-	@mkdir -p "$(RESOURCES)/Fonts"
-	@cp $(FONT_FILES) "$(RESOURCES)/Fonts/"
 	@mkdir -p "$(RESOURCES)/Sounds"
 	@cp $(SOUND_FILES) "$(RESOURCES)/Sounds/"
 	@plutil -replace NSMicrophoneUsageDescription -string "$(APP_NAME) needs microphone access to transcribe your speech." "$(CONTENTS)/Info.plist"
