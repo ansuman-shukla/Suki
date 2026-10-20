@@ -10,6 +10,7 @@ struct SukiTests {
         RecordingCaptureTimingTests.run()
         RecordingTimerPreferenceTests.run()
         DictationStatsTests.run()
+        VocabularyListTests.run()
         ShortcutCoreTests.run()
         SemanticVersionTests.run()
         LLMCooldownManagerTests.run()
