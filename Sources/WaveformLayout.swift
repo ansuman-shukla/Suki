@@ -18,6 +18,8 @@ struct WaveformLayout: Equatable {
     static let rippleDelayPerStep = 0.1
     static let shimmerPeriod = 1.2
     static let shimmerBandWidth = 2.0
+    static let breathPeriod = 1.6
+    static let breathDepth = 0.1
 
     /// Whole bar steps between bar `index` and the center; both middle bars
     /// of an even count sit at step 0.
@@ -39,6 +41,15 @@ struct WaveformLayout: Equatable {
 
     func rippleDelay(ofBar index: Int) -> Double {
         Double(steps(fromCenter: index)) * Self.rippleDelayPerStep
+    }
+
+    /// Live level plus a soft idle swell that ripples outward on the same
+    /// per-step delay and fades as the voice gets louder, so silence still
+    /// reads as listening without masking speech.
+    func breathingLevel(ofBar index: Int, level: Double, time: TimeInterval) -> Double {
+        let clamped = min(max(level, 0), 1)
+        let phase = 2 * Double.pi * (time - rippleDelay(ofBar: index)) / Self.breathPeriod
+        return clamped + (1 - clamped) * Self.breathDepth * (0.5 - 0.5 * cos(phase))
     }
 
     func barHeight(ofBar index: Int, level: Double, minHeight: CGFloat, maxHeight: CGFloat) -> CGFloat {

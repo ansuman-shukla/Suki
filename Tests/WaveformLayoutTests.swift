@@ -9,6 +9,7 @@ enum WaveformLayoutTests {
         testScaleNeverDropsBelowMinimum()
         testBarHeight()
         testShimmerSweep()
+        testBreathingRipplesOutward()
     }
 
     private static func testPresets() {
@@ -94,6 +95,34 @@ enum WaveformLayoutTests {
         expectValues(brightness(at: time(headAt: 0.5)), [0.75, 0.75, 0.25, 0, 0, 0, 0, 0, 0, 0])
         expectValues(brightness(at: time(headAt: 4, cycle: 3)), [0, 0, 0, 0.5, 1, 0.5, 0, 0, 0, 0])
         expectValues(brightness(at: time(headAt: 4, cycle: -2)), [0, 0, 0, 0.5, 1, 0.5, 0, 0, 0, 0])
+    }
+
+    private static func testBreathingRipplesOutward() {
+        let layout = WaveformLayout.dictation
+        TestSupport.expectEqual(WaveformLayout.breathPeriod, 1.6)
+        TestSupport.expectEqual(WaveformLayout.breathDepth, 0.1)
+        func level(_ index: Int, _ level: Double, _ time: Double) -> Double {
+            layout.breathingLevel(ofBar: index, level: level, time: time)
+        }
+
+        // Center bars peak half a period in; each step outward peaks 0.1 s later.
+        expectValues(
+            (0..<10).map { level($0, 0, 0.8) },
+            [0.05, 0.069_134_17, 0.085_355_34, 0.096_193_98, 0.1, 0.1, 0.096_193_98, 0.085_355_34, 0.069_134_17, 0.05],
+            accuracy: 0.000_000_01
+        )
+        expectValues([level(3, 0, 0.9), level(2, 0, 1.0), level(1, 0, 1.1), level(9, 0, 1.2)], [0.1, 0.1, 0.1, 0.1])
+        expectValues([level(4, 0, 0), level(0, 0, 0.4), level(9, 0, 2.0)], [0, 0, 0])
+        TestSupport.expectApproximatelyEqual(level(0, 0, 0), 0.05)
+        TestSupport.expectApproximatelyEqual(level(5, 0, 0.4), 0.05)
+        TestSupport.expectApproximatelyEqual(level(5, 0, 0.8 + 1.6 * 3), 0.1)
+
+        // The swell shrinks as the voice fills the bar and never pushes past full.
+        TestSupport.expectApproximatelyEqual(level(4, 0.5, 0.8), 0.55)
+        TestSupport.expectApproximatelyEqual(level(4, 0.5, 0), 0.5)
+        TestSupport.expectApproximatelyEqual(level(4, 1, 0.8), 1)
+        TestSupport.expectApproximatelyEqual(level(4, 1.5, 0.8), 1)
+        TestSupport.expectApproximatelyEqual(level(4, -1, 0.8), 0.1)
     }
 
     private static func expectValues(
