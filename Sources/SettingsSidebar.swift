@@ -5,7 +5,6 @@ enum SettingsPage: String, Identifiable {
     case system
     case transcription
     case prompts
-    case macros
     case runLog
     case diagnostics
 
@@ -17,7 +16,6 @@ enum SettingsPage: String, Identifiable {
         case .system: return "System"
         case .transcription: return "Transcription"
         case .prompts: return "Prompts"
-        case .macros: return "Voice Macros"
         case .runLog: return "Run Log"
         case .diagnostics: return "Diagnostics"
         }
@@ -29,7 +27,6 @@ enum SettingsPage: String, Identifiable {
         case .system: return "macwindow"
         case .transcription: return "waveform"
         case .prompts: return "text.bubble"
-        case .macros: return "music.mic"
         case .runLog: return "clock.arrow.circlepath"
         case .diagnostics: return "wrench.and.screwdriver"
         }
