@@ -12,6 +12,8 @@ struct SukiTests {
         DictationStatsTests.run()
         HomeCopyTests.run()
         HomeHistoryGroupingTests.run()
+        VocabularyListTests.run()
+        SnippetListTests.run()
         ShortcutCoreTests.run()
         SemanticVersionTests.run()
         LLMCooldownManagerTests.run()
