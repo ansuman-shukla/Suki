@@ -4,7 +4,9 @@ enum HomeCopyTests {
     static func run() {
         firstNameIsTheFirstWord()
         greetingFallsBackWithoutAName()
-        shortcutLabelPrefersHoldThenToggle()
+        greetingLeadOnlyMentionsShortcutWhenPresent()
+        dictationShortcutPrefersHoldThenToggle()
+        wordsPerMinuteShowsDashUntilMeasured()
         streakMessageFollowsStreakLength()
         countsUseLocaleGrouping()
     }
@@ -23,14 +25,36 @@ enum HomeCopyTests {
         TestSupport.expectEqual(HomeCopy.greeting(firstName: ""), "Welcome back")
     }
 
-    private static func shortcutLabelPrefersHoldThenToggle() {
+    private static func greetingLeadOnlyMentionsShortcutWhenPresent() {
+        TestSupport.expectEqual(HomeCopy.greetingLead(firstName: "Ada", hasShortcut: true), "Hey Ada, get back into it with")
+        TestSupport.expectEqual(HomeCopy.greetingLead(firstName: nil, hasShortcut: true), "Welcome back, get back into it with")
+        TestSupport.expectEqual(HomeCopy.greetingLead(firstName: "Ada", hasShortcut: false), "Hey Ada")
+        TestSupport.expectEqual(HomeCopy.greetingLead(firstName: nil, hasShortcut: false), "Welcome back")
+    }
+
+    private static func dictationShortcutPrefersHoldThenToggle() {
         let hold = ShortcutBinding.defaultHold
         let toggle = ShortcutBinding.defaultToggle
         TestSupport.expect(hold.displayName != toggle.displayName, "Fixture shortcuts must be distinguishable")
 
-        TestSupport.expectEqual(HomeCopy.shortcutLabel(hold: hold, toggle: toggle), hold.displayName)
-        TestSupport.expectEqual(HomeCopy.shortcutLabel(hold: .disabled, toggle: toggle), toggle.displayName)
-        TestSupport.expectEqual(HomeCopy.shortcutLabel(hold: .disabled, toggle: .disabled), nil)
+        let both = HomeCopy.dictationShortcut(hold: hold, toggle: toggle)
+        TestSupport.expectEqual(both, HomeShortcut(label: hold.displayName, isHold: true))
+        TestSupport.expectEqual(both?.verb, "Hold")
+
+        let toggleOnly = HomeCopy.dictationShortcut(hold: .disabled, toggle: toggle)
+        TestSupport.expectEqual(toggleOnly, HomeShortcut(label: toggle.displayName, isHold: false))
+        TestSupport.expectEqual(toggleOnly?.verb, "Tap")
+
+        TestSupport.expectEqual(HomeCopy.dictationShortcut(hold: hold, toggle: .disabled), HomeShortcut(label: hold.displayName, isHold: true))
+        TestSupport.expectEqual(HomeCopy.dictationShortcut(hold: .disabled, toggle: .disabled), nil)
+    }
+
+    private static func wordsPerMinuteShowsDashUntilMeasured() {
+        let locale = Locale(identifier: "en_US")
+        TestSupport.expectEqual(HomeCopy.wordsPerMinuteValue(0, locale: locale), "—")
+        TestSupport.expectEqual(HomeCopy.wordsPerMinuteValue(-3, locale: locale), "—")
+        TestSupport.expectEqual(HomeCopy.wordsPerMinuteValue(1, locale: locale), "1")
+        TestSupport.expectEqual(HomeCopy.wordsPerMinuteValue(1_250, locale: locale), "1,250")
     }
 
     private static func streakMessageFollowsStreakLength() {

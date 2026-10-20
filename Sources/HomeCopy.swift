@@ -1,5 +1,12 @@
 import Foundation
 
+struct HomeShortcut: Equatable {
+    let label: String
+    let isHold: Bool
+
+    var verb: String { isHold ? "Hold" : "Tap" }
+}
+
 /// Text shown on the hub home page.
 enum HomeCopy {
     static func firstName(fromFullName fullName: String) -> String? {
@@ -11,11 +18,22 @@ enum HomeCopy {
         return "Hey \(firstName)"
     }
 
+    /// Lead-in for the shortcut keycap, or the bare greeting when there is no shortcut to show.
+    static func greetingLead(firstName: String?, hasShortcut: Bool) -> String {
+        let greeting = greeting(firstName: firstName)
+        return hasShortcut ? "\(greeting), get back into it with" : greeting
+    }
+
     /// The shortcut to advertise, preferring hold-to-talk. Nil when both are disabled.
-    static func shortcutLabel(hold: ShortcutBinding, toggle: ShortcutBinding) -> String? {
-        if !hold.isDisabled { return hold.displayName }
-        if !toggle.isDisabled { return toggle.displayName }
+    static func dictationShortcut(hold: ShortcutBinding, toggle: ShortcutBinding) -> HomeShortcut? {
+        if !hold.isDisabled { return HomeShortcut(label: hold.displayName, isHold: true) }
+        if !toggle.isDisabled { return HomeShortcut(label: toggle.displayName, isHold: false) }
         return nil
+    }
+
+    /// An em dash until there is timed dictation to compute a rate from.
+    static func wordsPerMinuteValue(_ wordsPerMinute: Int, locale: Locale = .current) -> String {
+        wordsPerMinute > 0 ? formattedCount(wordsPerMinute, locale: locale) : "—"
     }
 
     static func streakMessage(days: Int) -> String {
