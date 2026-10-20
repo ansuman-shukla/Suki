@@ -39,7 +39,7 @@ struct HubShell<Content: View>: View {
     var body: some View {
         HStack(spacing: 0) {
             HubSidebar()
-                .frame(width: 208)
+                .frame(width: 220)
 
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -49,11 +49,13 @@ struct HubShell<Content: View>: View {
                     RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
                         .stroke(Theme.border, lineWidth: 1)
                 )
-                .padding(.top, 44)
-                .padding([.trailing, .bottom], 8)
+                .padding([.top, .trailing, .bottom], 8)
         }
         .background(Theme.windowBackground)
         .foregroundStyle(Theme.textPrimary)
+        // The window uses a full-size content view; the traffic lights sit over the sidebar,
+        // so the hub lays out the title bar area itself instead of adding its safe area on top.
+        .ignoresSafeArea()
     }
 }
 
@@ -63,9 +65,9 @@ struct HubSidebar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HubLogo()
-                .padding(.horizontal, 12)
-                .padding(.top, 52)
-                .padding(.bottom, 20)
+                .padding(.horizontal, 10)
+                .padding(.top, 46)
+                .padding(.bottom, 18)
 
             ForEach(HubSection.allCases) { section in
                 HubSidebarRow(
@@ -167,6 +169,17 @@ struct HubModal<Content: View>: View {
 }
 
 /// Serif page title with a one-line subtitle and optional trailing actions.
+extension View {
+    /// Shared page frame inside the hub panel: one readable column, centered, same insets on every page.
+    func hubPageLayout() -> some View {
+        frame(maxWidth: 720, alignment: .leading)
+            .padding(.horizontal, 40)
+            .padding(.top, 40)
+            .padding(.bottom, 48)
+            .frame(maxWidth: .infinity)
+    }
+}
+
 struct HubPageHeader<Actions: View>: View {
     let title: String
     let subtitle: String
