@@ -74,10 +74,7 @@ struct SnippetsPage: View {
                     HubEmptyState(title: "No matches", message: "No snippet matches “\(query)”.")
                 }
             }
-            .padding(.horizontal, 48)
-            .padding(.vertical, 40)
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
+            .hubPageLayout()
         }
         .animation(.suki, value: isAdding)
         .animation(.suki, value: editingID)

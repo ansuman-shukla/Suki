@@ -55,10 +55,7 @@ struct MeetingsContent: View {
 
                 PastMeetingsList(meetings: screen.meetings, onCopy: onCopy, onDelete: onDelete)
             }
-            .padding(.horizontal, 40)
-            .padding(.vertical, 36)
-            .frame(maxWidth: 760, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .hubPageLayout()
         }
         .overlay(alignment: .bottom) {
             if let toast = screen.toast {

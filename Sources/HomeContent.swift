@@ -29,9 +29,7 @@ struct HomeContent: View {
                 history
             }
         }
-        .frame(maxWidth: 720, alignment: .leading)
-        .padding(40)
-        .frame(maxWidth: .infinity)
+        .hubPageLayout()
     }
 
     private var history: some View {
