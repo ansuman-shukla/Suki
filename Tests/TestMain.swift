@@ -12,6 +12,7 @@ struct SukiTests {
         WaveformLayoutTests.run()
         SukiSoundTests.run()
         DictationStatsTests.run()
+        AppAppearanceTests.run()
         HomeCopyTests.run()
         HomeHistoryGroupingTests.run()
         VocabularyListTests.run()
