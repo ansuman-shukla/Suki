@@ -314,7 +314,7 @@ struct SettingsView: View {
 
     private var groups: [SettingsSidebarGroup] {
         [
-            SettingsSidebarGroup(title: "Settings", pages: [.general, .prompts, .macros]),
+            SettingsSidebarGroup(title: "Settings", pages: [.general, .system, .prompts, .macros]),
             SettingsSidebarGroup(title: "Advanced", pages: AppBuild.isDevBundle ? [.runLog, .debug] : [.runLog]),
         ]
     }
@@ -339,6 +339,8 @@ struct SettingsView: View {
             switch page {
             case .general:
                 GeneralSettingsView()
+            case .system:
+                SystemSettingsPane()
             case .prompts:
                 PromptsSettingsView()
             case .macros:
@@ -374,7 +376,7 @@ private extension SettingsPage {
 
     var tab: SettingsTab {
         switch self {
-        case .general: return .general
+        case .general, .system: return .general
         case .prompts: return .prompts
         case .macros: return .macros
         case .runLog: return .runLog
@@ -430,11 +432,6 @@ struct DebugSettingsView: View {
 
 struct GeneralSettingsView: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("show_menu_bar_icon") private var showMenuBarIcon = true
-    @AppStorage("overlay_display_id") private var overlayDisplayID = 0
-    @AppStorage("use_compact_overlay") private var useCompactOverlay = true
-    @AppStorage(RecordingTimerPreference.storageKey) private var showRecordingTimer = RecordingTimerPreference.defaultEnabled
-    @State private var screensVersion = 0
     @State private var apiDraft = APIConfigurationDraft()
     @State private var advancedProviderSettingsExpanded = false
     @State private var isValidatingKey = false
@@ -442,11 +439,9 @@ struct GeneralSettingsView: View {
     @State private var successfulAPIConfiguration: ValidatedAPIConfiguration?
     @State private var customVocabularyInput: String = ""
     @FocusState private var customVocabularyFocused: Bool
-    @State private var micPermissionGranted = false
     @State private var showMutedHint = false
     @State private var copiedBuildInfo = false
     @State private var copiedBuildInfoResetWorkItem: DispatchWorkItem?
-    @ObservedObject private var updateManager = UpdateManager.shared
 
     private var appDisplayName: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
@@ -504,14 +499,6 @@ struct GeneralSettingsView: View {
                 .padding(.top, 4)
                 .padding(.bottom, 4)
 
-                SettingsCard("App", icon: "power") {
-                    startupSection
-                }
-                if UpdateManager.isConfigured {
-                    SettingsCard("Updates", icon: "arrow.triangle.2.circlepath") {
-                        updatesSection
-                    }
-                }
                 SettingsCard("API Key", icon: "key.fill") {
                     apiKeySection
                 }
@@ -530,17 +517,11 @@ struct GeneralSettingsView: View {
                 SettingsCard("Audio During Dictation", icon: "speaker.slash.fill") {
                     dictationAudioSection
                 }
-                SettingsCard("Recording Overlay", icon: "rectangle.dashed") {
-                    overlaySection
-                }
                 SettingsCard("Edit Mode", icon: "pencil") {
                     commandModeSection
                 }
                 SettingsCard("Cleanup", icon: "sparkles") {
                     cleanupSection
-                }
-                SettingsCard("Clipboard", icon: "doc.on.clipboard") {
-                    clipboardSection
                 }
                 SettingsCard("Microphone", icon: "mic.fill") {
                     microphoneSection
@@ -550,9 +531,6 @@ struct GeneralSettingsView: View {
                 }
                 SettingsCard("Custom Vocabulary", icon: "text.book.closed.fill") {
                     vocabularySection
-                }
-                SettingsCard("Permissions", icon: "lock.shield.fill") {
-                    permissionsSection
                 }
                 SettingsCard("Build", icon: "info.circle.fill") {
                     buildInfoSection
@@ -566,8 +544,6 @@ struct GeneralSettingsView: View {
             keyValidationError = nil
             successfulAPIConfiguration = nil
             customVocabularyInput = appState.customVocabulary
-            checkMicPermission()
-            appState.refreshLaunchAtLoginStatus()
         }
         .onDisappear {
             apiDraft.dismiss()
@@ -584,151 +560,6 @@ struct GeneralSettingsView: View {
             keyValidationError = nil
             if successfulAPIConfiguration != value {
                 successfulAPIConfiguration = nil
-            }
-        }
-    }
-
-    // MARK: Startup
-
-    private var startupSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle("Launch \(AppName.displayName) at login", isOn: $appState.launchAtLogin)
-            Toggle("Show menu bar icon", isOn: $showMenuBarIcon)
-
-            if SMAppService.mainApp.status == .requiresApproval {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .font(.caption)
-                    Text("Login item requires approval in System Settings.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button("Open Login Items Settings") {
-                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!)
-                    }
-                    .font(.caption)
-                }
-            }
-        }
-    }
-
-    // MARK: Updates
-
-    private var updatesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle("Automatically check for updates", isOn: Binding(
-                get: { updateManager.autoCheckEnabled },
-                set: { updateManager.autoCheckEnabled = $0 }
-            ))
-
-            HStack(spacing: 10) {
-                Button {
-                    Task {
-                        await updateManager.checkForUpdates(userInitiated: true)
-                    }
-                } label: {
-                    if updateManager.isChecking {
-                        HStack(spacing: 6) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Checking...")
-                        }
-                    } else {
-                        Text("Check for Updates Now")
-                    }
-                }
-                .disabled(updateManager.isChecking || updateManager.updateStatus != .idle)
-
-                if let lastCheck = updateManager.lastCheckDate {
-                    Text("Last checked: \(lastCheck.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            if updateManager.updateAvailable {
-                VStack(alignment: .leading, spacing: 8) {
-                    switch updateManager.updateStatus {
-                    case .downloading:
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .foregroundStyle(.blue)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Downloading update...")
-                                    .font(.caption.weight(.semibold))
-                                ProgressView(value: updateManager.downloadProgress ?? 0)
-                                    .progressViewStyle(.linear)
-                                if let progress = updateManager.downloadProgress {
-                                    Text("\(Int(progress * 100))%")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            Spacer()
-                            Button("Cancel") {
-                                updateManager.cancelDownload()
-                            }
-                            .font(.caption)
-                        }
-
-                    case .installing:
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Installing update...")
-                                .font(.caption.weight(.semibold))
-                        }
-
-                    case .readyToRelaunch:
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Relaunching...")
-                                .font(.caption.weight(.semibold))
-                        }
-
-                    case .error(let message):
-                        HStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.red)
-                            Text(message)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                            Spacer()
-                            Button("Retry") {
-                                updateManager.updateStatus = .idle
-                                if let release = updateManager.latestRelease {
-                                    updateManager.downloadAndInstall(release: release)
-                                }
-                            }
-                            .font(.caption)
-                        }
-
-                    case .idle:
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .foregroundStyle(.blue)
-                            Text(updateManager.latestReleaseVersion.isEmpty
-                                ? "A new version of \(AppName.displayName) is available!"
-                                : "\(AppName.displayName) v\(updateManager.latestReleaseVersion) is available!")
-                                .font(.caption.weight(.semibold))
-                            Spacer()
-                            Button("What's New") {
-                                updateManager.showReleaseNotes()
-                            }
-                            .font(.caption)
-                            Button("Update Now") {
-                                if let release = updateManager.latestRelease {
-                                    updateManager.downloadAndInstall(release: release)
-                                }
-                            }
-                            .font(.caption)
-                        }
-                    }
-                }
-                .padding(10)
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(6)
             }
         }
     }
@@ -938,34 +769,6 @@ struct GeneralSettingsView: View {
         }
     }
 
-    // MARK: Recording Overlay
-
-    private var overlaySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            OverlayStyleOptionRow(
-                title: "Minimalist menu-bar overlay",
-                subtitle: "Two slim wings flank the camera notch and stay inside the menu bar. Never covers app tabs or toolbars.",
-                isMinimalist: true,
-                selection: $useCompactOverlay
-            )
-            OverlayStyleOptionRow(
-                title: "Drop-down pill",
-                subtitle: "Single pill hangs below the menu bar during recording. Larger and more visible, but covers a thin strip of whatever app is active.",
-                isMinimalist: false,
-                selection: $useCompactOverlay
-            )
-
-            Toggle("Show recording timer", isOn: $showRecordingTimer)
-            Text("When off, the minimalist overlay shows a waveform instead of the timer, and the drop-down pill hides the timer. Applies to the next recording.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Divider()
-
-            overlayDisplaySection
-        }
-    }
-
     // MARK: Audio During Dictation
 
     private var dictationAudioSection: some View {
@@ -978,45 +781,6 @@ struct GeneralSettingsView: View {
             Text("\(AppName.displayName) restores the audio state it changed when dictation ends.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    /// Picks which physical display the recording overlay drops down on.
-    /// Without this, AppKit defaults to "the screen with the active key
-    /// window" (NSScreen.main), which makes the pill follow focus across
-    /// monitors — disorienting on multi-display setups.
-    private var overlayDisplaySection: some View {
-        HStack {
-            Text("Show on")
-                .font(.system(size: 13))
-            Spacer()
-            Picker("", selection: $overlayDisplayID) {
-                Text("Active window (default)").tag(0)
-                Text("Primary display").tag(-1)
-                ForEach(connectedScreenEntries, id: \.tag) { entry in
-                    Text(entry.name).tag(entry.tag)
-                }
-            }
-            .labelsHidden()
-            .accessibilityLabel("Show on")
-            .pickerStyle(.menu)
-            .frame(maxWidth: 240)
-        }
-        // Re-query NSScreen.screens whenever the display arrangement
-        // changes so newly-attached monitors appear in the menu without
-        // reopening Settings. screensVersion is just a cache-buster.
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
-            screensVersion &+= 1
-        }
-    }
-
-    private var connectedScreenEntries: [(name: String, tag: Int)] {
-        _ = screensVersion
-        return NSScreen.screens.compactMap { screen in
-            guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else {
-                return nil
-            }
-            return (name: screen.localizedName, tag: Int(id))
         }
     }
 
@@ -1093,36 +857,6 @@ struct GeneralSettingsView: View {
                 .foregroundStyle(.secondary)
 
             Text("If Output Language is set, the transcript is still translated into that language, but the translation is literal: no rewording, no filler removal, no reformatting.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    // MARK: Clipboard
-
-    private var clipboardSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle("Preserve clipboard after paste", isOn: $appState.preserveClipboard)
-
-            Text("\(AppName.displayName) will temporarily place the transcript on your clipboard to paste it, then restore whatever was there before. If you copy something else before the restore happens, \(AppName.displayName) leaves it alone.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Divider()
-                .padding(.vertical, 2)
-
-            Toggle("Keep dictations in clipboard history", isOn: $appState.keepDictationInClipboardHistory)
-
-            Text("When on, your clipboard manager (Paste, Raycast, Maccy, etc.) records each dictation so you can find it in your recent history. When off, \(AppName.displayName) marks dictations transient and your clipboard manager skips them.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Divider()
-                .padding(.vertical, 2)
-
-            Toggle("Say \"press enter\" to submit after paste", isOn: $appState.isPressEnterVoiceCommandEnabled)
-
-            Text("When the transcription ends with \"press enter\", \(AppName.displayName) removes those words before cleanup, pastes the remaining transcript, then presses Return.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -1238,70 +972,6 @@ struct GeneralSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-    }
-
-    // MARK: Permissions
-
-    private var permissionsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            permissionRow(
-                title: "Microphone",
-                icon: "mic.fill",
-                granted: micPermissionGranted,
-                action: {
-                    appState.requestMicrophoneAccess { granted in
-                        micPermissionGranted = granted
-                    }
-                }
-            )
-
-            permissionRow(
-                title: "Accessibility",
-                icon: "hand.raised.fill",
-                granted: appState.hasAccessibility,
-                action: {
-                    appState.openAccessibilitySettings()
-                }
-            )
-
-            permissionRow(
-                title: "Screen Recording",
-                icon: "camera.viewfinder",
-                granted: appState.hasScreenRecordingPermission,
-                action: {
-                    appState.requestScreenCapturePermission()
-                }
-            )
-        }
-    }
-
-    private func permissionRow(title: String, icon: String, granted: Bool, action: @escaping () -> Void) -> some View {
-        HStack {
-            Image(systemName: icon)
-                .frame(width: 20)
-                .foregroundStyle(.blue)
-            Text(title)
-            Spacer()
-            if granted {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                Text("Granted")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-            } else {
-                Button("Grant Access") {
-                    action()
-                }
-                .font(.caption)
-            }
-        }
-        .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(6)
-    }
-
-    private func checkMicPermission() {
-        micPermissionGranted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
     }
 
 }
