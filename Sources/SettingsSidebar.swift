@@ -7,7 +7,7 @@ enum SettingsPage: String, Identifiable {
     case prompts
     case macros
     case runLog
-    case debug
+    case diagnostics
 
     var id: String { rawValue }
 
@@ -19,7 +19,7 @@ enum SettingsPage: String, Identifiable {
         case .prompts: return "Prompts"
         case .macros: return "Voice Macros"
         case .runLog: return "Run Log"
-        case .debug: return "Debug"
+        case .diagnostics: return "Diagnostics"
         }
     }
 
@@ -31,7 +31,7 @@ enum SettingsPage: String, Identifiable {
         case .prompts: return "text.bubble"
         case .macros: return "music.mic"
         case .runLog: return "clock.arrow.circlepath"
-        case .debug: return "wrench.and.screwdriver"
+        case .diagnostics: return "wrench.and.screwdriver"
         }
     }
 }

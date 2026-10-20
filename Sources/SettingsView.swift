@@ -315,7 +315,7 @@ struct SettingsView: View {
     private var groups: [SettingsSidebarGroup] {
         [
             SettingsSidebarGroup(title: "Settings", pages: [.general, .system, .transcription, .prompts, .macros]),
-            SettingsSidebarGroup(title: "Advanced", pages: AppBuild.isDevBundle ? [.runLog, .debug] : [.runLog]),
+            SettingsSidebarGroup(title: "Advanced", pages: [.runLog, .diagnostics]),
         ]
     }
 
@@ -349,8 +349,8 @@ struct SettingsView: View {
                 VoiceMacrosSettingsView()
             case .runLog:
                 RunLogView()
-            case .debug:
-                DebugSettingsView()
+            case .diagnostics:
+                DiagnosticsSettingsPane()
             }
         }
         .onAppear {
@@ -372,7 +372,7 @@ private extension SettingsPage {
         case .prompts: self = .prompts
         case .macros: self = .macros
         case .runLog: self = .runLog
-        case .debug: self = AppBuild.isDevBundle ? .debug : .general
+        case .debug: self = .diagnostics
         }
     }
 
@@ -382,50 +382,7 @@ private extension SettingsPage {
         case .prompts: return .prompts
         case .macros: return .macros
         case .runLog: return .runLog
-        case .debug: return .debug
-        }
-    }
-}
-
-// MARK: - Debug Settings
-
-struct DebugSettingsView: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Debug")
-                    .font(.largeTitle.bold())
-
-                SettingsCard("Overlay", icon: "wrench.and.screwdriver") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Show the recording overlay with simulated audio levels.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Button(appState.isDebugOverlayActive ? "Stop Debug Overlay" : "Debug Overlay") {
-                            appState.toggleDebugOverlay()
-                        }
-                    }
-                }
-
-                SettingsCard("Update Overlay", icon: "arrow.down.circle") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Display the update available overlay after dictation finishes.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Toggle("Show after dictation", isOn: $appState.debugShowsUpdateReminderAfterDictation)
-
-                        Button("Show Update Overlay Now") {
-                            appState.showDebugUpdateAvailableOverlay()
-                        }
-                    }
-                }
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        case .diagnostics: return .debug
         }
     }
 }
@@ -437,42 +394,9 @@ struct GeneralSettingsView: View {
     @State private var customVocabularyInput: String = ""
     @FocusState private var customVocabularyFocused: Bool
     @State private var showMutedHint = false
-    @State private var copiedBuildInfo = false
-    @State private var copiedBuildInfoResetWorkItem: DispatchWorkItem?
-
-    private var appDisplayName: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-            ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
-            ?? "\(AppName.displayName)"
-    }
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
-    }
-
-    private var appBuildNumber: String {
-        Bundle.main.object(forInfoDictionaryKey: "SukiBuildTag") as? String
-            ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-            ?? "unknown"
-    }
-
-    private var macOSVersion: String {
-        let version = ProcessInfo.processInfo.operatingSystemVersion
-        return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
-    }
-
-    private var appArchitecture: String {
-        #if arch(arm64)
-        return "arm64"
-        #elseif arch(x86_64)
-        return "x86_64"
-        #else
-        return "unknown"
-        #endif
-    }
-
-    private var buildDiagnosticsText: String {
-        "\(appDisplayName) \(appVersion) (\(appBuildNumber))\nmacOS \(macOSVersion) (\(appArchitecture))"
     }
 
     var body: some View {
@@ -514,9 +438,6 @@ struct GeneralSettingsView: View {
                 SettingsCard("Custom Vocabulary", icon: "text.book.closed.fill") {
                     vocabularySection
                 }
-                SettingsCard("Build", icon: "info.circle.fill") {
-                    buildInfoSection
-                }
             }
             .padding(24)
         }
@@ -526,53 +447,6 @@ struct GeneralSettingsView: View {
         .onDisappear {
             commitCustomVocabulary()
         }
-    }
-
-    // MARK: Build
-
-    private var buildInfoSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Build number")
-                    .font(.caption.weight(.semibold))
-                Spacer()
-                Text(appBuildNumber)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-
-            HStack(alignment: .top, spacing: 12) {
-                Text(buildDiagnosticsText)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-
-                Spacer()
-
-                Button {
-                    copyBuildDiagnostics()
-                } label: {
-                    Label(copiedBuildInfo ? "Copied" : "Copy", systemImage: copiedBuildInfo ? "checkmark" : "doc.on.doc")
-                }
-                .font(.caption)
-            }
-        }
-    }
-
-    private func copyBuildDiagnostics() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(buildDiagnosticsText, forType: .string)
-        copiedBuildInfo = true
-
-        copiedBuildInfoResetWorkItem?.cancel()
-
-        let resetWorkItem = DispatchWorkItem {
-            copiedBuildInfo = false
-            copiedBuildInfoResetWorkItem = nil
-        }
-        copiedBuildInfoResetWorkItem = resetWorkItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: resetWorkItem)
     }
 
     // MARK: Output Language
