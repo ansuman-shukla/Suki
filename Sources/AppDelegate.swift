@@ -6,6 +6,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hubWindow: NSWindow?
     private let hubRouter = HubRouter()
     private(set) lazy var meetingRecorder = MainActor.assumeIsolated { MeetingRecorder.live(appState: appState) }
+    private lazy var meetingDetection = MainActor.assumeIsolated {
+        MeetingDetectionController(
+            isRecordingMeeting: { [unowned self] in meetingRecorder.isActive },
+            onAccept: { NotificationCenter.default.post(name: .toggleMeetingRecording, object: nil) }
+        )
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NetworkMonitor.shared.start()
@@ -41,6 +47,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             appState.startHotkeyMonitoring()
             appState.startAccessibilityPolling()
+            MainActor.assumeIsolated { meetingDetection.start() }
             Task { @MainActor in
                 UpdateManager.shared.startPeriodicChecks()
             }
