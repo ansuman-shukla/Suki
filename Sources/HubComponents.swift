@@ -165,3 +165,134 @@ struct HubModal<Content: View>: View {
         .onAppear { withAnimation(.suki) { isShown = true } }
     }
 }
+
+/// Serif page title with a one-line subtitle and optional trailing actions.
+struct HubPageHeader<Actions: View>: View {
+    let title: String
+    let subtitle: String
+    @ViewBuilder let actions: Actions
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(SukiFont.display(34))
+                    .tracking(-0.4)
+                Text(subtitle)
+                    .font(SukiFont.ui(14))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            Spacer(minLength: 0)
+            actions
+        }
+    }
+}
+
+struct HubButtonStyle: ButtonStyle {
+    var isPrimary = true
+    var isCompact = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(SukiFont.ui(isCompact ? 12 : 13, .semibold))
+            .padding(.horizontal, isCompact ? 10 : 14)
+            .frame(height: isCompact ? 28 : 32)
+            .foregroundStyle(isPrimary ? Theme.primaryButtonText : Theme.textPrimary)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+                    .fill(isPrimary ? Theme.primaryButton : Theme.secondaryButton)
+            )
+            .opacity(configuration.isPressed ? 0.8 : 1)
+            .contentShape(Rectangle())
+    }
+}
+
+struct HubSearchField: View {
+    @Binding var text: String
+    let prompt: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.textTertiary)
+            TextField(prompt, text: $text)
+                .textFieldStyle(.plain)
+                .font(SukiFont.ui(14))
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Theme.textTertiary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 36)
+        .background(RoundedRectangle(cornerRadius: Radius.md, style: .continuous).fill(Theme.card))
+    }
+}
+
+/// Small borderless icon button for row actions such as edit and delete.
+struct HubIconButton: View {
+    let systemName: String
+    let help: String
+    var isDestructive = false
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(isHovered && isDestructive ? Theme.destructive : Theme.textSecondary)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: Radius.sm, style: .continuous)
+                        .fill(isHovered ? Theme.panel : .clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .onHover { isHovered = $0 }
+        .animation(.suki, value: isHovered)
+    }
+}
+
+/// Edit and delete buttons that fade in while their row is hovered.
+struct HubRowActions: View {
+    let isVisible: Bool
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            HubIconButton(systemName: "pencil", help: "Edit", action: onEdit)
+            HubIconButton(systemName: "trash", help: "Delete", isDestructive: true, action: onDelete)
+        }
+        .opacity(isVisible ? 1 : 0)
+        .allowsHitTesting(isVisible)
+        .animation(.suki, value: isVisible)
+    }
+}
+
+/// Serif empty-state line with a short hint underneath.
+struct HubEmptyState: View {
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(title)
+                .font(SukiFont.displayItalic(22))
+            Text(message)
+                .font(SukiFont.ui(13))
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 56)
+    }
+}
