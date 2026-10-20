@@ -1,4 +1,8 @@
 import Foundation
+import os
+
+/// Counts, levels and error types only; never audio or transcript text.
+let meetingLog = OSLog(subsystem: "com.ansumanshukla.suki", category: "Meeting")
 
 enum MeetingRecorderError: LocalizedError, Equatable {
     case missingAPIKey
@@ -81,7 +85,13 @@ final class MeetingTranscriptionQueue {
         using transcriber: SpeechToTextService,
         tempDirectory: URL
     ) async -> MeetingSegment? {
-        guard !MeetingTranscriptCore.isSilent(MeetingTranscriptCore.windowLevels(chunk.samples)) else { return nil }
+        let levels = MeetingTranscriptCore.windowLevels(chunk.samples)
+        let speaker = chunk.speaker.rawValue
+        guard !MeetingTranscriptCore.isSilent(levels) else {
+            os_log(.info, log: meetingLog, "%{public}@ chunk %.1fs skipped as silent, peak rms %.4f",
+                   speaker, chunk.duration, levels.max() ?? 0)
+            return nil
+        }
         let fileURL = tempDirectory.appendingPathComponent("\(UUID().uuidString).wav")
         defer { try? FileManager.default.removeItem(at: fileURL) }
         let text: String
@@ -92,9 +102,14 @@ final class MeetingTranscriptionQueue {
         } catch is CancellationError {
             return nil
         } catch {
+            os_log(.error, log: meetingLog, "%{public}@ chunk transcription failed: %{public}@",
+                   speaker, String(describing: type(of: error)))
             text = MeetingTranscriptCore.failedChunkText
         }
-        guard !text.isEmpty, !Task.isCancelled else { return nil }
+        guard !text.isEmpty, !Task.isCancelled else {
+            os_log(.info, log: meetingLog, "%{public}@ chunk %.1fs returned no text", speaker, chunk.duration)
+            return nil
+        }
         return MeetingSegment(speaker: chunk.speaker, start: chunk.start, text: text)
     }
 }
