@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuBarView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var meetingRecorder: MeetingRecorder
     @ObservedObject private var updateManager = UpdateManager.shared
 
     private var appVersion: String {
@@ -117,6 +118,12 @@ struct MenuBarView: View {
                 appState.toggleRecording()
             }
             .disabled(appState.isTranscribing)
+
+            Button(meetingRecorder.isActive ? "Stop Meeting" : "Record Meeting") {
+                NotificationCenter.default.post(name: .showHub, object: HubSection.meetings)
+                Task { await meetingRecorder.toggle() }
+            }
+            .disabled(meetingRecorder.phase == .starting || meetingRecorder.phase == .finishing)
 
             if let hotkeyError = appState.hotkeyMonitoringErrorMessage {
                 Divider()
