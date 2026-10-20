@@ -309,71 +309,77 @@ struct ProviderSettingsFields: View {
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
+    let onClose: () -> Void
+    @State private var page = SettingsPage.general
+
+    private var groups: [SettingsSidebarGroup] {
+        [
+            SettingsSidebarGroup(title: "Settings", pages: [.general, .prompts, .macros]),
+            SettingsSidebarGroup(title: "Advanced", pages: AppBuild.isDevBundle ? [.runLog, .debug] : [.runLog]),
+        ]
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+    }
 
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(SettingsTab.visibleCases) { tab in
-                    Button {
-                        appState.selectedSettingsTab = tab
-                    } label: {
-                        SettingsSidebarRow(title: tab.title, icon: tab.icon)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(appState.selectedSettingsTab == tab
-                                          ? Color.accentColor.opacity(0.15)
-                                          : Color.clear)
-                            )
-                    }
-                    .buttonStyle(.plain)
+        SettingsShell(
+            groups: groups,
+            selection: Binding(
+                get: { page },
+                set: { newPage in
+                    page = newPage
+                    appState.selectedSettingsTab = newPage.tab
                 }
-
-                Spacer()
+            ),
+            footer: "\(AppName.displayName) v\(appVersion)",
+            onClose: onClose
+        ) {
+            switch page {
+            case .general:
+                GeneralSettingsView()
+            case .prompts:
+                PromptsSettingsView()
+            case .macros:
+                VoiceMacrosSettingsView()
+            case .runLog:
+                RunLogView()
+            case .debug:
+                DebugSettingsView()
             }
-            .padding(10)
-            .frame(width: 180)
-            .background(Color(nsColor: .windowBackgroundColor))
-
-            Divider()
-
-            Group {
-                switch appState.selectedSettingsTab {
-                case .general, .none:
-                    GeneralSettingsView()
-                case .prompts:
-                    PromptsSettingsView()
-                case .macros:
-                    VoiceMacrosSettingsView()
-                case .runLog:
-                    RunLogView()
-                case .debug:
-                    DebugSettingsView()
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .onAppear {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { page = SettingsPage(appState.selectedSettingsTab ?? .general) }
+        }
+        .onChange(of: appState.selectedSettingsTab) { tab in
+            guard let tab, tab != page.tab else { return }
+            page = SettingsPage(tab)
         }
     }
 }
 
-private struct SettingsSidebarRow: View {
-    let title: String
-    let icon: String
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .regular))
-                .frame(width: 16, height: 16, alignment: .center)
-                .foregroundStyle(.primary)
-
-            Text(title)
-                .font(.body)
-                .frame(maxWidth: .infinity, alignment: .leading)
+private extension SettingsPage {
+    init(_ tab: SettingsTab) {
+        switch tab {
+        case .general: self = .general
+        case .prompts: self = .prompts
+        case .macros: self = .macros
+        case .runLog: self = .runLog
+        case .debug: self = AppBuild.isDevBundle ? .debug : .general
         }
-        .frame(height: 16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
+    }
+
+    var tab: SettingsTab {
+        switch self {
+        case .general: return .general
+        case .prompts: return .prompts
+        case .macros: return .macros
+        case .runLog: return .runLog
+        case .debug: return .debug
+        }
     }
 }
 
