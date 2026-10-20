@@ -21,7 +21,6 @@ that architecture unless the user explicitly approves a migration.
 - `Tests/`: dependency-free executable tests.
 - `.github/workflows/check.yml`: pull-request verification.
 - `.github/workflows/release.yml`: semver-tagged production release.
-- `.github/workflows/dev-release.yml`: signed development release from `main`.
 
 ## Working rules
 
@@ -32,8 +31,8 @@ that architecture unless the user explicitly approves a migration.
   push them, open or update draft pull requests, and address CI or review
   feedback.
 - Do not push directly to `main`.
-- Do not merge, tag, publish a release, or move the `dev` tag unless the user
-  explicitly authorizes that action.
+- Do not merge, tag, or publish a release unless the user explicitly
+  authorizes that action.
 - Do not change versions, release notes, signing, notarization, or release
   workflows during ordinary maintenance.
 - Avoid adding dependencies when the standard library or existing frameworks
