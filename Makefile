@@ -17,6 +17,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/AppContextService.swift \
 	Sources/AppName.swift \
 	Sources/ContextInferenceFailure.swift \
+	Sources/DictationStats.swift \
 	Sources/GeminiLiveTranscriptionService.swift \
 	Sources/GeminiTranscriptionService.swift \
 	Sources/GlobalShortcutBackend.swift \
