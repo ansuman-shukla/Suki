@@ -26,6 +26,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/LiveTranscriptionProvider.swift \
 	Sources/LiveTranscriptionSession.swift \
 	Sources/LiveTypingCore.swift \
+	Sources/MeetingAudioCapture.swift \
 	Sources/MeetingStore.swift \
 	Sources/MeetingTranscriptCore.swift \
 	Sources/MeetingTranscriptionPipeline.swift \

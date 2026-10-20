@@ -23,6 +23,7 @@ struct SukiTests {
         LiveTypingCoreTests.run()
         MeetingTranscriptCoreTests.run()
         MeetingStoreTests.run()
+        MeetingAudioCaptureTests.run()
         await MeetingTranscriptionPipelineTests.run()
         SyntheticKeystrokeTyperTests.run()
         await TranscriptionServiceTests.run()
