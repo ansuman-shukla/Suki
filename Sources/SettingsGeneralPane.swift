@@ -164,7 +164,7 @@ struct GeneralSettingsPane: View {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         showMutedHint = muted || (volume ?? 1) < 0.10
                     }
-                    appState.playAlertSound(named: "Tink")
+                    appState.playAlertSound(.start)
                 }
                 .buttonStyle(.settings)
             }

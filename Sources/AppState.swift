@@ -2624,16 +2624,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
     }
 
     func playAlertSound(_ sound: SukiSound) {
-        play(sound.makeSound())
-    }
-
-    func playAlertSound(named name: String) {
-        play(NSSound(named: name))
-    }
-
-    private func play(_ sound: NSSound?) {
         guard alertSoundsEnabled else { return }
 
+        let sound = sound.makeSound()
         sound?.volume = soundVolume
         sound?.play()
     }
