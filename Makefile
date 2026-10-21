@@ -230,6 +230,10 @@ run: all
 # Spotlight. Permission grants carry over because they follow the signing
 # identity, not the bundle path.
 install: all
+	@if codesign -dv "$(APP_BUNDLE)" 2>&1 | grep -q 'adhoc'; then \
+		echo "error: refusing to install an ad-hoc signed build; macOS drops its permissions on every rebuild. Run 'make clean' and build with a stable identity such as the default Suki Dev." >&2; \
+		exit 1; \
+	fi
 	@osascript -e 'tell application id "$(BUNDLE_ID)" to quit' >/dev/null 2>&1 || true
 	@while pgrep -xq "$(APP_NAME)"; do sleep 0.2; done
 	@rm -rf "$(INSTALLED_APP)"
