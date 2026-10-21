@@ -1,5 +1,4 @@
 import AppKit
-import CoreText
 import SwiftUI
 
 /// Raw palette. Warm "paper" neutrals plus a few small accents.
@@ -106,48 +105,31 @@ extension Animation {
     static let sukiPop = Animation.spring(response: 0.32, dampingFraction: 0.68)
 }
 
-/// Bundled OFL fonts: Figtree for UI text, EB Garamond for display headings and numbers.
+/// Apple system fonts: SF Pro for UI text, New York (the system serif) for display headings and numbers.
 enum SukiFont {
     enum Weight {
         case regular, medium, semibold, bold
 
-        fileprivate var figtree: String {
+        fileprivate var system: Font.Weight {
             switch self {
-            case .regular: return "Figtree-Regular"
-            case .medium: return "Figtree-Medium"
-            case .semibold: return "Figtree-SemiBold"
-            case .bold: return "Figtree-Bold"
-            }
-        }
-
-        fileprivate var garamond: String {
-            switch self {
-            case .regular: return "EBGaramond-Regular"
-            case .medium: return "EBGaramond-Medium"
-            case .semibold: return "EBGaramond-SemiBold"
-            case .bold: return "EBGaramond-Bold"
+            case .regular: return .regular
+            case .medium: return .medium
+            case .semibold: return .semibold
+            case .bold: return .bold
             }
         }
     }
 
     static func ui(_ size: CGFloat, _ weight: Weight = .regular) -> Font {
-        .custom(weight.figtree, size: size)
+        .system(size: size, weight: weight.system)
     }
 
     static func display(_ size: CGFloat, _ weight: Weight = .regular) -> Font {
-        .custom(weight.garamond, size: size)
+        .system(size: size, weight: weight.system, design: .serif)
     }
 
     static func displayItalic(_ size: CGFloat) -> Font {
-        .custom("EBGaramond-Italic", size: size)
-    }
-
-    /// Registers the fonts shipped in `Contents/Resources/Fonts` for this process.
-    static func registerBundled(bundle: Bundle = .main) {
-        guard let urls = bundle.urls(forResourcesWithExtension: "ttf", subdirectory: "Fonts") else { return }
-        for url in urls {
-            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
-        }
+        .system(size: size, design: .serif).italic()
     }
 }
 

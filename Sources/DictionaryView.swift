@@ -75,10 +75,7 @@ struct DictionaryPage: View {
                     HubEmptyState(title: "No matches", message: "Nothing in your dictionary matches “\(query)”.")
                 }
             }
-            .padding(.horizontal, 48)
-            .padding(.vertical, 40)
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
+            .hubPageLayout()
         }
         .animation(.suki, value: isAdding)
         .animation(.suki, value: editingID)

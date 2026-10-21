@@ -3,9 +3,23 @@ import SwiftUI
 struct GeneralSettingsPane: View {
     @EnvironmentObject var appState: AppState
     @State private var showMutedHint = false
+    @State private var isCapturingMeetingShortcut = false
+    @State private var meetingShortcutValidationMessage: String?
+    @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.defaultValue
 
     var body: some View {
         SettingsPane(title: "General") {
+            SettingsGroup("Appearance") {
+                SettingsRow("Theme", detail: appearance.title) {
+                    Picker("Theme", selection: $appearance) {
+                        ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 210)
+                }
+            }
+            .onChange(of: appearance) { $0.apply() }
             shortcutsGroup
             SettingsGroup("Microphone") {
                 microphoneRow
@@ -35,6 +49,24 @@ struct GeneralSettingsPane: View {
                     } else {
                         appState.resumeHotkeyMonitoringAfterShortcutCapture()
                     }
+                }
+            }
+            SettingsBlock("Meeting shortcut", detail: "Starts or stops a meeting recording from any app. Off until you pick a shortcut.") {
+                ShortcutRoleSection(
+                    role: .meeting,
+                    selection: appState.meetingShortcut,
+                    validationMessage: meetingShortcutValidationMessage,
+                    isCapturing: $isCapturingMeetingShortcut,
+                    onSelect: { binding in
+                        meetingShortcutValidationMessage = appState.setShortcut(binding, for: .meeting)
+                    }
+                )
+            }
+            .onChange(of: isCapturingMeetingShortcut) { isCapturing in
+                if isCapturing {
+                    appState.suspendHotkeyMonitoringForShortcutCapture()
+                } else {
+                    appState.resumeHotkeyMonitoringAfterShortcutCapture()
                 }
             }
             SettingsBlock(
@@ -132,7 +164,7 @@ struct GeneralSettingsPane: View {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         showMutedHint = muted || (volume ?? 1) < 0.10
                     }
-                    appState.playAlertSound(named: "Tink")
+                    appState.playAlertSound(.start)
                 }
                 .buttonStyle(.settings)
             }

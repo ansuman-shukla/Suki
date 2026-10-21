@@ -8,13 +8,33 @@ struct SystemSettingsPane: View {
     @AppStorage("overlay_display_id") private var overlayDisplayID = 0
     @AppStorage("use_compact_overlay") private var useCompactOverlay = true
     @AppStorage(RecordingTimerPreference.storageKey) private var showRecordingTimer = RecordingTimerPreference.defaultEnabled
+    @AppStorage(MeetingDetectionMode.storageKey) private var meetingDetection = MeetingDetectionMode.defaultValue
     @State private var screensVersion = 0
     @State private var micPermissionGranted = false
     @ObservedObject private var updateManager = UpdateManager.shared
 
+    private var meetingsGroup: some View {
+        SettingsGroup("Meetings") {
+            SettingsRow(
+                "Meeting detection",
+                detail: "Offers to take notes when a call app starts using your microphone."
+            ) {
+                Picker("Meeting detection", selection: $meetingDetection) {
+                    ForEach(MeetingDetectionMode.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 210)
+            }
+        }
+    }
+
     var body: some View {
         SettingsPane(title: "System") {
             appGroup
+            if #available(macOS 14.2, *) {
+                meetingsGroup
+            }
             permissionsGroup
             overlayGroup
             clipboardGroup

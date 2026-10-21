@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import os
 
 /// Runs a meeting recording: both audio sources, chunking, transcription, and saving.
 @MainActor
@@ -25,6 +26,8 @@ final class MeetingRecorder: ObservableObject {
     private var queue: MeetingTranscriptionQueue?
     private var buffers: [MeetingSpeaker: MeetingChunkBuffer] = [:]
     private var levels: [MeetingSpeaker: Float] = [:]
+    private var receivedSamples: [MeetingSpeaker: Int] = [:]
+    private var peakRMS: [MeetingSpeaker: Float] = [:]
     private var toastTask: Task<Void, Never>?
 
     init(
@@ -76,7 +79,10 @@ final class MeetingRecorder: ObservableObject {
                 }
             }
             phase = .recording
+            os_log(.info, log: meetingLog, "Meeting started with sources: %{public}@",
+                   sources.map(\.speaker.rawValue).joined(separator: ","))
         } catch {
+            os_log(.error, log: meetingLog, "Meeting start failed: %{public}@", String(describing: error))
             sources.forEach { $0.stop() }
             queue?.cancelAll()
             reset()
@@ -95,6 +101,12 @@ final class MeetingRecorder: ObservableObject {
         }
         await queue.drain()
         let segments = queue.segments.sorted { $0.start < $1.start }
+        for speaker in MeetingSpeaker.allCases {
+            os_log(.info, log: meetingLog, "Meeting stopped after %.1fs: %{public}@ received %.1fs audio, peak rms %.4f",
+                   duration, speaker.rawValue,
+                   Double(receivedSamples[speaker] ?? 0) / MeetingTranscriptCore.sampleRate, peakRMS[speaker] ?? 0)
+        }
+        os_log(.info, log: meetingLog, "Meeting produced %d segments", segments.count)
         reset()
         guard !segments.isEmpty else {
             errorMessage = "No speech was picked up, so nothing was saved."
@@ -133,7 +145,10 @@ final class MeetingRecorder: ObservableObject {
     /// `arrival` is seconds since the start when the audio thread delivered the batch.
     func ingest(_ samples: [Float], from speaker: MeetingSpeaker, arrival: TimeInterval) {
         guard phase == .recording else { return }
-        levels[speaker] = MeetingTranscriptCore.displayLevel(rms: MeetingTranscriptCore.rms(samples))
+        let rms = MeetingTranscriptCore.rms(samples)
+        receivedSamples[speaker, default: 0] += samples.count
+        peakRMS[speaker] = max(peakRMS[speaker] ?? 0, rms)
+        levels[speaker] = MeetingTranscriptCore.displayLevel(rms: rms)
         let loudest = levels.values.max() ?? 0
         if abs(loudest - level) > 0.02 { level = loudest }
         if let chunk = buffers[speaker]?.append(samples, arrival: arrival) {
@@ -146,6 +161,8 @@ final class MeetingRecorder: ObservableObject {
         queue = nil
         buffers = [:]
         levels = [:]
+        receivedSamples = [:]
+        peakRMS = [:]
         level = 0
         startedAt = nil
         liveSegments = []

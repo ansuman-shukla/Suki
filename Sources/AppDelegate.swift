@@ -6,10 +6,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hubWindow: NSWindow?
     private let hubRouter = HubRouter()
     private(set) lazy var meetingRecorder = MainActor.assumeIsolated { MeetingRecorder.live(appState: appState) }
+    private lazy var meetingDetection = MainActor.assumeIsolated {
+        MeetingDetectionController(
+            isRecordingMeeting: { [unowned self] in meetingRecorder.isActive },
+            onAccept: { NotificationCenter.default.post(name: .toggleMeetingRecording, object: nil) }
+        )
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NetworkMonitor.shared.start()
-        SukiFont.registerBundled()
+        AppAppearance.load(from: .standard).apply()
 
         NotificationCenter.default.addObserver(
             self,
@@ -29,12 +35,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: .showHub,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleToggleMeetingRecording),
+            name: .toggleMeetingRecording,
+            object: nil
+        )
 
         if !appState.hasCompletedSetup {
             showSetupWindow()
         } else {
             appState.startHotkeyMonitoring()
             appState.startAccessibilityPolling()
+            MainActor.assumeIsolated { meetingDetection.start() }
             Task { @MainActor in
                 UpdateManager.shared.startPeriodicChecks()
             }
@@ -52,6 +65,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             showHubWindow()
         }
         return true
+    }
+
+    /// The meeting shortcut stays out of the way: sounds confirm start and stop, and the hub
+    /// only opens when starting fails so the error is visible.
+    @objc private func handleToggleMeetingRecording() {
+        let recorder = meetingRecorder
+        Task { @MainActor in
+            let wasActive = recorder.isActive
+            guard wasActive || !appState.isRecording else {
+                appState.playAlertSound(.error)
+                return
+            }
+            await recorder.toggle()
+            if wasActive {
+                appState.playAlertSound(.stop)
+            } else if recorder.isActive {
+                appState.playAlertSound(.start)
+            } else {
+                appState.playAlertSound(.error)
+                hubRouter.section = .meetings
+                showHubWindow()
+            }
+        }
     }
 
     @objc func handleShowSetup() {

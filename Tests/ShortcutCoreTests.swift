@@ -9,6 +9,8 @@ enum ShortcutCoreTests {
         testReducerHonorsExactModifierMatching()
         testRepeatedKeyDownDoesNotReactivate()
         testPasteAgainFiresOnLeadingEdgeOnly()
+        testMeetingToggleFiresOnLeadingEdgeOnly()
+        testMeetingToggleRequiresItsModifiers()
         testBackendResetClearsActiveBindings()
         testBindingMigrationAndIdentity()
         testConflictDetection()
@@ -223,6 +225,75 @@ enum ShortcutCoreTests {
         TestSupport.expectEqual(repeated.emittedEvents, [])
         TestSupport.expectEqual(up.emittedEvents, [])
         TestSupport.expectEqual(secondDown.emittedEvents, [.copyAgainTriggered])
+    }
+
+    private static func testMeetingToggleFiresOnLeadingEdgeOnly() {
+        let binding = ShortcutBinding(keyCode: 46, keyDisplay: "M", modifiers: [], kind: .key, preset: nil)
+        let configuration = ShortcutConfiguration(hold: .disabled, toggle: .disabled, meeting: binding)
+        let firstDown = ShortcutMatcher.reduce(
+            state: ShortcutInputState(),
+            event: .keyChanged(keyCode: 46, isDown: true, isRepeat: false),
+            configuration: configuration
+        )
+        let repeated = ShortcutMatcher.reduce(
+            state: firstDown.state,
+            event: .keyChanged(keyCode: 46, isDown: true, isRepeat: true),
+            configuration: configuration
+        )
+        let up = ShortcutMatcher.reduce(
+            state: repeated.state,
+            event: .keyChanged(keyCode: 46, isDown: false, isRepeat: false),
+            configuration: configuration
+        )
+        let secondDown = ShortcutMatcher.reduce(
+            state: up.state,
+            event: .keyChanged(keyCode: 46, isDown: true, isRepeat: false),
+            configuration: configuration
+        )
+
+        TestSupport.expectEqual(firstDown.emittedEvents, [.meetingToggleTriggered])
+        TestSupport.expectEqual(firstDown.consumeDecision, .consume)
+        TestSupport.expect(
+            firstDown.state.hasPressedShortcutInputs(configuration: configuration),
+            "a held meeting key counts as a pressed shortcut input"
+        )
+        TestSupport.expectEqual(repeated.emittedEvents, [])
+        TestSupport.expectEqual(up.emittedEvents, [])
+        TestSupport.expectEqual(secondDown.emittedEvents, [.meetingToggleTriggered])
+    }
+
+    private static func testMeetingToggleRequiresItsModifiers() {
+        let binding = ShortcutBinding(keyCode: 46, keyDisplay: "M", modifiers: [.control, .option], kind: .key, preset: nil)
+        let configuration = ShortcutConfiguration(hold: .disabled, toggle: .disabled, meeting: binding)
+        let bare = ShortcutMatcher.reduce(
+            state: ShortcutInputState(),
+            event: .keyChanged(keyCode: 46, isDown: true, isRepeat: false),
+            configuration: configuration
+        )
+        TestSupport.expectEqual(bare.emittedEvents, [])
+        TestSupport.expectEqual(bare.consumeDecision, .passthrough)
+
+        let control = ShortcutMatcher.reduce(
+            state: ShortcutInputState(),
+            event: .modifierChanged(keyCode: 59, isDown: true),
+            configuration: configuration
+        )
+        let controlOption = ShortcutMatcher.reduce(
+            state: control.state,
+            event: .modifierChanged(keyCode: 58, isDown: true),
+            configuration: configuration
+        )
+        let combo = ShortcutMatcher.reduce(
+            state: controlOption.state,
+            event: .keyChanged(keyCode: 46, isDown: true, isRepeat: false),
+            configuration: configuration
+        )
+        TestSupport.expectEqual(combo.emittedEvents, [.meetingToggleTriggered])
+        TestSupport.expectEqual(combo.consumeDecision, .consume)
+
+        let controller = DictationShortcutSessionController()
+        TestSupport.expectEqual(controller.handle(event: .meetingToggleTriggered, isTranscribing: false), nil)
+        TestSupport.expectEqual(controller.activeMode, nil)
     }
 
     private static func testBackendResetClearsActiveBindings() {

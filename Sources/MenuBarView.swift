@@ -9,6 +9,11 @@ struct MenuBarView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 
+    private var meetingMenuTitle: String {
+        let title = meetingRecorder.isActive ? "Stop Meeting" : "Record Meeting"
+        return appState.meetingShortcut.isDisabled ? title : "\(title)  (\(appState.meetingShortcut.displayName))"
+    }
+
     private var recentHistoryItems: [PipelineHistoryItem] {
         Array(appState.pipelineHistory.filter { !transcriptText(for: $0).isEmpty }.prefix(10))
     }
@@ -119,11 +124,14 @@ struct MenuBarView: View {
             }
             .disabled(appState.isTranscribing)
 
-            Button(meetingRecorder.isActive ? "Stop Meeting" : "Record Meeting") {
+            Button(meetingMenuTitle) {
                 NotificationCenter.default.post(name: .showHub, object: HubSection.meetings)
                 Task { await meetingRecorder.toggle() }
             }
-            .disabled(meetingRecorder.phase == .starting || meetingRecorder.phase == .finishing)
+            .disabled(
+                meetingRecorder.phase == .starting || meetingRecorder.phase == .finishing
+                    || (!meetingRecorder.isActive && appState.isRecording)
+            )
 
             if let hotkeyError = appState.hotkeyMonitoringErrorMessage {
                 Divider()
