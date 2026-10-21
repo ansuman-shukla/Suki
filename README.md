@@ -4,20 +4,56 @@
 
 <h1 align="center">Suki</h1>
 
+<h3 align="center">Talk, and Suki types it. In any app on your Mac.</h3>
+
 <p align="center">
-  Fast, private dictation for your Mac. Speak, and your words land in any text field.
+  A free, open source alternative to Wispr Flow.<br>
+  Under 10MB, works with the AI model you choose, and there's no Suki server.
 </p>
 
 <p align="center">
-  <a href="https://github.com/ansuman-shukla/Suki/releases/latest"><b>⬇ Download Suki</b></a><br>
-  <sub>Works on all Macs (Apple Silicon + Intel)</sub>
+  <a href="https://github.com/ansuman-shukla/Suki/releases/latest"><b>⬇ Download Suki for Mac</b></a><br>
+  <sub>Free · Apple Silicon and Intel · macOS 13 or later</sub>
 </p>
+
+<!-- Demo video: paste the github.com/user-attachments/assets/... link on its own line here. -->
 
 ---
 
-## Overview
+## Why Suki
 
-Suki is an open source menu-bar dictation app for macOS. It gives you fast AI transcription, live transcription while you speak, context-aware cleanup, and voice-driven text editing, using your own API keys and no subscription.
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Tiny and native</b><br>
+      Under 10MB to download and about 25MB installed. Wispr Flow takes about 500MB. Suki is a native Mac app, so it stays light on your system.
+    </td>
+    <td width="50%" valign="top">
+      <b>Your AI, your choice</b><br>
+      Use Groq, OpenAI, Gemini, Anthropic, xAI, Deepgram, Cerebras, or any OpenAI-compatible service. Switch whenever you like.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <b>Private by design</b><br>
+      No Suki account and no Suki server. Your voice goes straight to the provider you pick, and your history stays on your Mac.
+    </td>
+    <td valign="top">
+      <b>Runs on local models</b><br>
+      Run cleanup with Ollama or LM Studio and transcription with a local Whisper server, and your words never leave your computer.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <b>Spells your words right</b><br>
+      Add names and jargon to your dictionary, so Suki spells them the way you do. It can also read the app you're typing in to catch names on screen.
+    </td>
+    <td valign="top">
+      <b>Free, no word limits</b><br>
+      No subscription and no weekly cap. You pay your AI provider directly for what you use, and some providers, like Groq, have a free tier.
+    </td>
+  </tr>
+</table>
 
 ## Quick Start
 
