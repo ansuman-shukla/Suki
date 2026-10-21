@@ -269,16 +269,18 @@ struct MeetingChunkBuffer {
     var pendingSeconds: TimeInterval { Double(pending.count) / MeetingTranscriptCore.sampleRate }
 
     /// `arrival` is seconds since the meeting began when these samples were delivered.
-    mutating func append(_ samples: [Float], arrival: TimeInterval) -> MeetingAudioChunk? {
-        guard !samples.isEmpty else { return nil }
+    /// Returns every chunk completed by this batch, oldest first.
+    mutating func append(_ samples: [Float], arrival: TimeInterval) -> [MeetingAudioChunk] {
+        guard !samples.isEmpty else { return [] }
         if streamOffset == nil {
             streamOffset = max(0, arrival - Double(samples.count) / MeetingTranscriptCore.sampleRate)
         }
         pending.append(contentsOf: samples)
-        guard pendingSeconds >= targetSeconds else { return nil }
+        guard pendingSeconds >= targetSeconds else { return [] }
         let window = Int(MeetingTranscriptCore.sampleRate * MeetingTranscriptCore.levelWindowSeconds)
         let isQuiet = MeetingTranscriptCore.rms(pending.suffix(window)) < MeetingTranscriptCore.silenceRMS
-        return isQuiet || pendingSeconds >= maxSeconds ? flush() : nil
+        guard isQuiet || pendingSeconds >= maxSeconds, let chunk = flush() else { return [] }
+        return [chunk]
     }
 
     mutating func flush() -> MeetingAudioChunk? {
