@@ -115,36 +115,35 @@ func hero(_ t: Theme) -> String {
     let body = """
     <defs>
       <filter id="shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000" flood-opacity="\(t.name == "dark" ? 0.3 : 0.07)"/></filter>
-      <clipPath id="line1"><rect x="964" y="215" height="70" width="0"><animate attributeName="width" values="0;600;600" keyTimes="0;0.32;1" dur="\(typingDuration)" repeatCount="indefinite"/></rect></clipPath>
-      <clipPath id="line2"><rect x="964" y="282" height="70" width="0"><animate attributeName="width" values="0;0;600;600" keyTimes="0;0.34;0.62;1" dur="\(typingDuration)" repeatCount="indefinite"/></rect></clipPath>
+      <clipPath id="line1"><rect x="964" y="179" height="70" width="0"><animate attributeName="width" values="0;600;600" keyTimes="0;0.32;1" dur="\(typingDuration)" repeatCount="indefinite"/></rect></clipPath>
+      <clipPath id="line2"><rect x="964" y="246" height="70" width="0"><animate attributeName="width" values="0;0;600;600" keyTimes="0;0.34;0.62;1" dur="\(typingDuration)" repeatCount="indefinite"/></rect></clipPath>
     </defs>
 
-    <image x="4" y="16" width="96" height="96" xlink:href="\(iconDataURI)" href="\(iconDataURI)"/>
-    <text x="4" y="250" class="serif" font-size="104" font-weight="600" fill="\(t.text)">Talk.</text>
-    <text x="4" y="358" class="serif" font-size="104" font-weight="600" fill="\(t.text)">Suki <tspan font-style="italic" fill="\(t.accent)">types.</tspan></text>
-    <text x="10" y="424" class="sans" font-size="31" fill="\(t.text2)">Free, private dictation for every app on your Mac.</text>
+    <image x="4" y="40" width="112" height="112" xlink:href="\(iconDataURI)" href="\(iconDataURI)"/>
+    <text x="8" y="236" class="sans" font-size="42" font-weight="500" fill="\(t.text)">Free, private dictation</text>
+    <text x="8" y="292" class="sans" font-size="42" font-weight="500" fill="\(t.text)">for every app on your Mac.</text>
 
-    <rect x="8" y="464" width="350" height="80" rx="40" fill="#C9761F"/>
-    <rect x="8" y="460" width="350" height="80" rx="40" fill="#FFA946"/>
-    <path d="M70 482v24m-10-10 10 10 10-10M58 516h24" fill="none" stroke="#1A1A1A" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="100" y="510" class="sans" font-size="29" font-weight="600" fill="#1A1A1A">Download for Mac</text>
-    <text x="388" y="510" class="sans" font-size="24" fill="\(t.text3)">macOS 13+ · Apple Silicon and Intel</text>
+    <rect x="8" y="348" width="350" height="80" rx="40" fill="#C9761F"/>
+    <rect x="8" y="344" width="350" height="80" rx="40" fill="#FFA946"/>
+    <path d="M70 366v24m-10-10 10 10 10-10M58 400h24" fill="none" stroke="#1A1A1A" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="100" y="394" class="sans" font-size="29" font-weight="600" fill="#1A1A1A">Download for Mac</text>
+    <text x="388" y="394" class="sans" font-size="24" fill="\(t.text3)">macOS 13+ · Apple Silicon and Intel</text>
 
-    <g filter="url(#shadow)"><rect x="924" y="56" width="668" height="300" rx="26" fill="\(t.panel)" stroke="\(t.border)" stroke-width="2"/></g>
-    <circle cx="962" cy="94" r="8" fill="\(t.border)"/><circle cx="990" cy="94" r="8" fill="\(t.border)"/><circle cx="1018" cy="94" r="8" fill="\(t.border)"/>
-    <text x="964" y="160" class="sans" font-size="26" fill="\(t.text3)">To: Sam</text>
-    <line x1="954" y1="186" x2="1562" y2="186" stroke="\(t.border)" stroke-width="2"/>
+    <g filter="url(#shadow)"><rect x="924" y="20" width="668" height="300" rx="26" fill="\(t.panel)" stroke="\(t.border)" stroke-width="2"/></g>
+    <circle cx="962" cy="58" r="8" fill="\(t.border)"/><circle cx="990" cy="58" r="8" fill="\(t.border)"/><circle cx="1018" cy="58" r="8" fill="\(t.border)"/>
+    <text x="964" y="124" class="sans" font-size="26" fill="\(t.text3)">To: Sam</text>
+    <line x1="954" y1="150" x2="1562" y2="150" stroke="\(t.border)" stroke-width="2"/>
     <g>
       <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.94;1" dur="\(typingDuration)" repeatCount="indefinite"/>
-      <text x="964" y="260" class="sans" font-size="33" fill="\(t.text)" clip-path="url(#line1)">Hey Sam, the deck is ready.</text>
-      <text x="964" y="324" class="sans" font-size="33" fill="\(t.text)" clip-path="url(#line2)">Want to go over it at 3?</text>
+      <text x="964" y="224" class="sans" font-size="33" fill="\(t.text)" clip-path="url(#line1)">Hey Sam, the deck is ready.</text>
+      <text x="964" y="288" class="sans" font-size="33" fill="\(t.text)" clip-path="url(#line2)">Want to go over it at 3?</text>
     </g>
 
-    \(keycap(t, x: 1000, y: 396, size: 80))
-    <rect x="1104" y="398" width="320" height="76" rx="38" fill="#1A1A1A" stroke="\(t.name == "dark" ? "#464544" : "#1A1A1A")" stroke-width="2"/>
-    \(waveform(centerX: 1264, centerY: 436, bars: 12, maxHeight: 40, color: "#FCFCFB"))
+    \(keycap(t, x: 1000, y: 360, size: 80))
+    <rect x="1104" y="362" width="320" height="76" rx="38" fill="#1A1A1A" stroke="\(t.name == "dark" ? "#464544" : "#1A1A1A")" stroke-width="2"/>
+    \(waveform(centerX: 1264, centerY: 400, bars: 12, maxHeight: 40, color: "#FCFCFB"))
     """
-    return svg(width: 1600, height: 552, title: "Talk. Suki types. Free, private dictation for every app on your Mac. Download for Mac.", body)
+    return svg(width: 1600, height: 470, title: "Suki: free, private dictation for every app on your Mac. Download for Mac.", body)
 }
 
 struct Feature {
