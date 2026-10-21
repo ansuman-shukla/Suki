@@ -24,22 +24,12 @@ struct TranscriptionSettingsView: View {
                 )
             }
 
-            if let credential = provider.credential {
-                ProviderAPIKeyField(provider: credential) { key in
-                    await APIKeyValidator.validate(key, for: credential)
-                }
-                .id(credential)
-            } else {
+            if provider == .custom {
                 Text("Any OpenAI-compatible /audio/transcriptions endpoint. Live transcription's Custom option uses it too.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                CustomEndpointFields(
-                    savedBaseURL: appState.transcriptionAPIURL,
-                    savedAPIKey: appState.transcriptionAPIKey
-                ) { baseURL, apiKey in
-                    appState.setCustomTranscriptionEndpoint(baseURL: baseURL, apiKey: apiKey)
-                }
             }
+            TranscriptionCredentialFields()
 
             ModelDropdownView(
                 title: "Transcription Model",

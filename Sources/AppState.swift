@@ -321,16 +321,19 @@ final class AppState: ObservableObject, @unchecked Sendable {
     var apiKey: String { llmConfiguration.apiKey }
     var apiBaseURL: String { llmConfiguration.baseURL }
 
+    /// Custom transcription endpoint, shared by upload and live transcription.
     @Published private(set) var transcriptionAPIURL: String
     @Published private(set) var transcriptionAPIKey: String
 
-    var committedAPIConfiguration: ValidatedAPIConfiguration {
-        ValidatedAPIConfiguration(
-            apiKey: apiKey,
-            baseURL: apiBaseURL,
-            transcriptionAPIURL: transcriptionAPIURL,
-            transcriptionAPIKey: transcriptionAPIKey
-        )
+    /// Keys are saved only after the provider accepts them, so a saved key
+    /// (or custom endpoint) means the provider is ready to use.
+    var isLLMConfigured: Bool {
+        llmProvider == .custom ? !customLLMBaseURL.isEmpty : !apiKey.isEmpty
+    }
+
+    var isTranscriptionConfigured: Bool {
+        guard let credential = transcriptionProvider.credential else { return !transcriptionAPIURL.isEmpty }
+        return !(providerAPIKeys[credential] ?? "").isEmpty
     }
 
     @Published var transcriptionModel: String {
@@ -999,7 +1002,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return ""
     }
 
-    static let groqBaseURL = APIProvider.groq.openAICompatibleBaseURL!
+    private static let groqBaseURL = APIProvider.groq.openAICompatibleBaseURL!
 
     private struct StoredShortcutConfiguration {
         let hold: ShortcutBinding
@@ -1141,23 +1144,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
             contextScreenshotMaxDimension: contextScreenshotMaxDimension,
             desktopScreenshotFallbackEnabled: desktopScreenshotFallbackEnabled
         )
-    }
-
-    /// Applies a validated key and base URL from the Setup API key step.
-    func updateAPIConfiguration(
-        apiKey: String,
-        baseURL: String,
-        transcriptionAPIURL: String,
-        transcriptionAPIKey: String
-    ) {
-        let provider = LLMProvider.migratedSelection(storedBaseURL: baseURL)
-        if let credential = provider.credential {
-            setProviderAPIKey(apiKey, for: credential)
-        } else {
-            setCustomLLMEndpoint(baseURL: baseURL, apiKey: apiKey)
-        }
-        llmProvider = provider
-        setCustomTranscriptionEndpoint(baseURL: transcriptionAPIURL, apiKey: transcriptionAPIKey)
     }
 
     func setCustomLLMEndpoint(baseURL: String, apiKey: String) {
