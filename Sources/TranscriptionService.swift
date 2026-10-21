@@ -299,13 +299,13 @@ class TranscriptionService: SpeechToTextService {
         case 401:
             return "Invalid API key for \(provider). Open Settings to fix it."
         case 403:
-            return "Key lacks permission for this endpoint at \(provider) (HTTP 403). Check the key's scopes."
+            return "Key lacks access to this endpoint or model at \(provider) (HTTP 403). Check the model name and the key's scopes."
         case 404:
-            return "Endpoint not found at \(provider) (HTTP 404). Base URL is likely wrong for this provider."
+            return "Not found at \(provider) (HTTP 404). Check the model name, or the URL of a custom endpoint."
         case 413:
             return "Audio file too large for \(provider) (HTTP 413). Try a shorter recording."
         case 400:
-            return "Provider rejected the request (HTTP 400). Check your model name and Base URL in Settings."
+            return "Provider rejected the request (HTTP 400). Check the model name in Settings."
         case 429:
             return "Rate limit reached at \(provider) (HTTP 429). Wait a moment and try again."
         case 500..<600:

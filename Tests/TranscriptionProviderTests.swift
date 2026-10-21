@@ -12,6 +12,7 @@ enum TranscriptionProviderTests {
         testDeepgramRequest()
         testSilentWAV()
         await testModelTest()
+        testModelErrorCopy()
     }
 
     private static func testMetadata() {
@@ -248,5 +249,15 @@ enum TranscriptionProviderTests {
         let missingKey = await TranscriptionModelTest.run(resolve(.xAI, key: ""))
         guard case .failure(let keyError) = missingKey else { return TestSupport.expect(false, "Missing key fails") }
         TestSupport.expect(keyError.localizedDescription.contains("xAI API key"), "Factory errors surface")
+    }
+
+    /// Presets have fixed URLs, so a bad model ID must not be blamed on the URL.
+    private static func testModelErrorCopy() {
+        for status in [400, 403, 404] {
+            let message = TranscriptionService.friendlyHTTPMessage(status: status, host: "api.example.invalid")
+            TestSupport.expect(message.contains("model name"), "HTTP \(status) points at the model name")
+            TestSupport.expect(!message.contains("Base URL"), "HTTP \(status) does not blame the base URL")
+            TestSupport.expect(message.contains("HTTP \(status)"), "HTTP \(status) shows the status")
+        }
     }
 }
