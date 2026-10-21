@@ -10,6 +10,14 @@ This project uses semantic versioning for public releases. Use `MAJOR.MINOR.PATC
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-21
+
+A small release with no changes to the app itself.
+
+### Improved
+- A new, easier README with a short visual tour, a four-step setup guide, a Suki vs Wispr Flow comparison, and a demo video.
+- Advanced setup (providers, local models, custom prompts, timeouts), privacy details, and an FAQ now live in a separate guide, `docs/advanced.md`.
+
 ## [0.1.0] - 2026-10-21
 
 First public release of Suki, a menu-bar dictation app for macOS that uses your own transcription and LLM API keys.
