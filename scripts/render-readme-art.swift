@@ -3,7 +3,7 @@
 // Usage, from the repository root:
 //   swift scripts/render-readme-art.swift
 //
-// Writes docs/assets/readme/<card>-light.svg and <card>-dark.svg. The README
+// Writes docs/assets/readme/<card>-light.svg, <card>-dark.svg, and download.svg. The README
 // picks the variant with <picture> and prefers-color-scheme. Fonts are named,
 // not embedded, so each viewer's system renders them (New York / SF on Macs).
 
@@ -26,8 +26,6 @@ struct Theme {
     let orange: String
     let selection: String
     let selectionOpacity: Double
-    let button: String
-    let buttonText: String
     let secondaryButton: String
     let tileOpacity: Double
 }
@@ -36,14 +34,12 @@ struct Theme {
 let light = Theme(
     name: "light", surface: "#F5F4F0", panel: "#FCFCFB", border: "#E4E0D6", text: "#1A1A1A",
     text2: "#71716E", text3: "#9D9C98", accent: "#7232A6", teal: "#247872", orange: "#D9862B",
-    selection: "#A26EC1", selectionOpacity: 0.12, button: "#1A1A1A", buttonText: "#FCFCFB",
-    secondaryButton: "#EEEBE3", tileOpacity: 0.14
+    selection: "#A26EC1", selectionOpacity: 0.12, secondaryButton: "#EEEBE3", tileOpacity: 0.14
 )
 let dark = Theme(
     name: "dark", surface: "#202020", panel: "#2A2A29", border: "#343432", text: "#E9E8E1",
     text2: "#B3B2AD", text3: "#878683", accent: "#A26EC1", teal: "#68BDB0", orange: "#FFA946",
-    selection: "#A26EC1", selectionOpacity: 0.16, button: "#FCFCFB", buttonText: "#1A1A1A",
-    secondaryButton: "#343432", tileOpacity: 0.2
+    selection: "#A26EC1", selectionOpacity: 0.16, secondaryButton: "#343432", tileOpacity: 0.2
 )
 
 let iconDataURI: String = {
@@ -78,12 +74,17 @@ func svg(width: Int, height: Int, title rawTitle: String, _ body: String) -> Str
     """
 }
 
-func card(_ t: Theme, x: Double, y: Double, width: Double, height: Double, radius: Double = 28) -> String {
-    "<rect x=\"\(x)\" y=\"\(y)\" width=\"\(width)\" height=\"\(height)\" rx=\"\(radius)\" fill=\"\(t.surface)\" stroke=\"\(t.border)\" stroke-width=\"2\"/>"
+func card(_ t: Theme, x: Double, y: Double, width: Double, height: Double, radius: Double = 28, fill: String? = nil) -> String {
+    "<rect x=\"\(x)\" y=\"\(y)\" width=\"\(width)\" height=\"\(height)\" rx=\"\(radius)\" fill=\"\(fill ?? t.surface)\" stroke=\"\(t.border)\" stroke-width=\"2\"/>"
 }
 
-func sectionTitle(_ t: Theme, _ text: String) -> String {
-    "<text x=\"4\" y=\"64\" class=\"serif\" font-size=\"60\" font-weight=\"600\" fill=\"\(t.text)\">\(text)</text>"
+// Every card is fully opaque so it reads correctly even when the viewer's
+// GitHub theme and system color scheme disagree.
+let sectionInset = 48.0, sectionContentTop = 150.0
+
+func section(_ t: Theme, _ title: String, height: Double) -> String {
+    card(t, x: 1, y: 1, width: 1598, height: height - 2, radius: 40) + "\n"
+        + "<text x=\"\(sectionInset + 8)\" y=\"100\" class=\"serif\" font-size=\"60\" font-weight=\"600\" fill=\"\(t.text)\">\(title)</text>"
 }
 
 func keycap(_ t: Theme, x: Double, y: Double, size: Double) -> String {
@@ -178,56 +179,59 @@ let features: [Feature] = [
 ]
 
 func featureGrid(_ t: Theme) -> String {
-    let columns = 3, cardWidth = 512.0, cardHeight = 320.0, gap = 32.0, top = 104.0
+    let columns = 3, gap = 24.0, cardHeight = 300.0
+    let cardWidth = (1600 - 2 * sectionInset - Double(columns - 1) * gap) / Double(columns)
+    let height = sectionContentTop + 2 * cardHeight + gap + sectionInset
     let accents = [t.orange, t.accent, t.teal]
     let cards = features.enumerated().map { index, feature -> String in
-        let x = Double(index % columns) * (cardWidth + gap)
-        let y = top + Double(index / columns) * (cardHeight + gap)
+        let x = sectionInset + Double(index % columns) * (cardWidth + gap)
+        let y = sectionContentTop + Double(index / columns) * (cardHeight + gap)
         let color = accents[index % accents.count]
         let lines = feature.lines.enumerated().map { lineIndex, line in
-            "<text x=\"\(x + 40)\" y=\"\(y + 244 + Double(lineIndex) * 38)\" class=\"sans\" font-size=\"27\" fill=\"\(t.text2)\">\(line)</text>"
+            "<text x=\"\(x + 36)\" y=\"\(y + 232 + Double(lineIndex) * 36)\" class=\"sans\" font-size=\"26\" fill=\"\(t.text2)\">\(line)</text>"
         }.joined(separator: "\n")
         return """
-        \(card(t, x: x + 1, y: y, width: cardWidth - 2, height: cardHeight))
-        <g transform="translate(\(x + 40) \(y + 40))"><rect width="80" height="80" rx="20" fill="\(color)" fill-opacity="\(t.tileOpacity)"/>\(feature.glyph(color))</g>
-        <text x="\(x + 40)" y="\(y + 192)" class="serif" font-size="44" font-weight="600" fill="\(t.text)">\(feature.title)</text>
+        \(card(t, x: x, y: y, width: cardWidth, height: cardHeight, radius: 24, fill: t.panel))
+        <g transform="translate(\(x + 36) \(y + 36))"><rect width="80" height="80" rx="20" fill="\(color)" fill-opacity="\(t.tileOpacity)"/>\(feature.glyph(color))</g>
+        <text x="\(x + 36)" y="\(y + 182)" class="serif" font-size="42" font-weight="600" fill="\(t.text)">\(feature.title)</text>
         \(lines)
         """
     }.joined(separator: "\n")
-    let height = Int(top + 2 * cardHeight + gap + 2)
-    return svg(width: 1600, height: height, title: "Why Suki: tiny, free, private, any AI, local models, and knows your words.",
-               sectionTitle(t, "Why Suki") + "\n" + cards)
+    return svg(width: 1600, height: Int(height), title: "Why Suki: tiny, free, private, any AI, local models, and knows your words.",
+               section(t, "Why Suki", height: height) + "\n" + cards)
 }
 
 func steps(_ t: Theme) -> String {
-    let cardWidth = 382.0, cardHeight = 380.0, gap = 24.0, top = 104.0
-    let cursor = "<path d=\"M0 0v34l9-8 7 15 7-3-7-14h12z\" fill=\"\(t.text)\" stroke=\"\(t.surface)\" stroke-width=\"3\" stroke-linejoin=\"round\"/>"
+    let gap = 20.0, cardHeight = 360.0
+    let cardWidth = (1600 - 2 * sectionInset - 3 * gap) / 4
+    let height = sectionContentTop + cardHeight + sectionInset
+    let cursor = "<path d=\"M0 0v34l9-8 7 15 7-3-7-14h12z\" fill=\"\(t.text)\" stroke=\"\(t.panel)\" stroke-width=\"3\" stroke-linejoin=\"round\"/>"
     let visuals: [(Double, Double) -> String] = [
         { cx, cy in
             """
-            <image x="\(cx - 140)" y="\(cy - 38)" width="76" height="76" xlink:href="\(iconDataURI)" href="\(iconDataURI)"/>
-            <path d="M\(cx - 44) \(cy)h66m-14-14 14 14-14 14" fill="none" stroke="\(t.text3)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M\(cx + 42) \(cy - 30)h28l10 10h40a8 8 0 0 1 8 8v42a8 8 0 0 1-8 8h-78a8 8 0 0 1-8-8v-52a8 8 0 0 1 8-8z" fill="\(t.secondaryButton)" stroke="\(t.text3)" stroke-width="3"/>
+            <image x="\(cx - 134)" y="\(cy - 36)" width="72" height="72" xlink:href="\(iconDataURI)" href="\(iconDataURI)"/>
+            <path d="M\(cx - 44) \(cy)h60m-14-14 14 14-14 14" fill="none" stroke="\(t.text3)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M\(cx + 38) \(cy - 30)h28l10 10h38a8 8 0 0 1 8 8v42a8 8 0 0 1-8 8h-76a8 8 0 0 1-8-8v-52a8 8 0 0 1 8-8z" fill="\(t.secondaryButton)" stroke="\(t.text3)" stroke-width="3"/>
             """
         },
         { cx, cy in
             """
-            <rect x="\(cx - 120)" y="\(cy - 32)" width="240" height="64" rx="14" fill="\(t.secondaryButton)" stroke="\(t.border)" stroke-width="2"/>
+            <rect x="\(cx - 116)" y="\(cy - 32)" width="232" height="64" rx="14" fill="\(t.secondaryButton)" stroke="\(t.border)" stroke-width="2"/>
             <text x="\(cx)" y="\(cy + 10)" text-anchor="middle" class="sans" font-size="27" font-weight="600" fill="\(t.text)">Open Anyway</text>
-            <g transform="translate(\(cx + 88) \(cy + 12))">\(cursor)</g>
+            <g transform="translate(\(cx + 84) \(cy + 12))">\(cursor)</g>
             """
         },
         { cx, cy in
             """
-            <rect x="\(cx - 140)" y="\(cy - 32)" width="280" height="64" rx="14" fill="\(t.panel)" stroke="\(t.border)" stroke-width="2"/>
-            <text x="\(cx - 116)" y="\(cy + 9)" class="mono" font-size="26" fill="\(t.text2)">gsk_••••••••</text>
-            <rect x="\(cx + 100)" y="\(cy - 18)" width="3" height="36" rx="1.5" fill="\(t.accent)"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.5;0.5;1" dur="1.1s" repeatCount="indefinite"/></rect>
+            <rect x="\(cx - 136)" y="\(cy - 32)" width="272" height="64" rx="14" fill="\(t.surface)" stroke="\(t.border)" stroke-width="2"/>
+            <text x="\(cx - 112)" y="\(cy + 9)" class="mono" font-size="26" fill="\(t.text2)">gsk_••••••••</text>
+            <rect x="\(cx + 96)" y="\(cy - 18)" width="3" height="36" rx="1.5" fill="\(t.accent)"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.5;0.5;1" dur="1.1s" repeatCount="indefinite"/></rect>
             """
         },
         { cx, cy in
             """
-            \(keycap(t, x: cx - 124, y: cy - 46, size: 88))
-            <rect x="\(cx - 16)" y="\(cy - 38)" width="148" height="72" rx="36" fill="#1A1A1A"/>
+            \(keycap(t, x: cx - 120, y: cy - 46, size: 88))
+            <rect x="\(cx - 14)" y="\(cy - 38)" width="144" height="72" rx="36" fill="#1A1A1A"/>
             \(waveform(centerX: cx + 58, centerY: cy - 2, bars: 6, maxHeight: 36, color: "#FCFCFB"))
             """
         },
@@ -235,30 +239,31 @@ func steps(_ t: Theme) -> String {
     let labels = [["Download and drag", "to Applications"], ["Open Anyway in", "Privacy &amp; Security"],
                   ["Paste a free", "Groq key"], ["Hold fn", "and talk"]]
     let cards = (0..<4).map { index -> String in
-        let x = Double(index) * (cardWidth + gap)
+        let x = sectionInset + Double(index) * (cardWidth + gap)
+        let y = sectionContentTop
         let text = labels[index].enumerated().map { lineIndex, line in
-            "<text x=\"\(x + 36)\" y=\"\(top + 290 + Double(lineIndex) * 38)\" class=\"sans\" font-size=\"28\" font-weight=\"\(lineIndex == 0 ? 600 : 400)\" fill=\"\(lineIndex == 0 ? t.text : t.text2)\">\(line)</text>"
+            "<text x=\"\(x + 32)\" y=\"\(y + 276 + Double(lineIndex) * 38)\" class=\"sans\" font-size=\"28\" font-weight=\"\(lineIndex == 0 ? 600 : 400)\" fill=\"\(lineIndex == 0 ? t.text : t.text2)\">\(line)</text>"
         }.joined(separator: "\n")
         return """
-        \(card(t, x: x + 1, y: top, width: cardWidth - 2, height: cardHeight))
-        <text x="\(x + 36)" y="\(top + 78)" class="serif" font-size="48" font-weight="600" fill="\(t.text3)">\(index + 1)</text>
-        \(visuals[index](x + cardWidth / 2, top + 170))
+        \(card(t, x: x, y: y, width: cardWidth, height: cardHeight, radius: 24, fill: t.panel))
+        <text x="\(x + 32)" y="\(y + 72)" class="serif" font-size="46" font-weight="600" fill="\(t.text3)">\(index + 1)</text>
+        \(visuals[index](x + cardWidth / 2, y + 160))
         \(text)
         """
     }.joined(separator: "\n")
-    return svg(width: 1600, height: Int(top + cardHeight + 2),
+    return svg(width: 1600, height: Int(height),
                title: "Get started: download and drag to Applications, click Open Anyway in Privacy & Security, paste a free Groq key, hold fn and talk.",
-               sectionTitle(t, "Get started in a minute") + "\n" + cards)
+               section(t, "Get started in a minute", height: height) + "\n" + cards)
 }
 
 func comparison(_ t: Theme) -> String {
-    let top = 104.0, rowHeight = 88.0, headerHeight = 120.0
+    let rowHeight = 88.0, headerHeight = 100.0
     let rows: [(String, String, String)] = [
         ("Unlimited use", "Free", "$15/month"), ("Size on disk", "25MB", "500MB"),
         ("Pick your AI model", "yes", "no"), ("Local models", "yes", "no"), ("Open source", "yes", "no"),
     ]
-    let sukiX = 1000.0, wisprX = 1360.0
-    let height = top + headerHeight + Double(rows.count) * rowHeight + 40
+    let sukiX = 1000.0, wisprX = 1360.0, tableTop = sectionContentTop - 10
+    let height = tableTop + headerHeight + Double(rows.count) * rowHeight + sectionInset
     func value(_ value: String, x: Double, y: Double, strong: Bool) -> String {
         switch value {
         case "yes":
@@ -270,7 +275,7 @@ func comparison(_ t: Theme) -> String {
         }
     }
     let rowMarkup = rows.enumerated().map { index, row -> String in
-        let baseline = top + headerHeight + Double(index) * rowHeight + 56
+        let baseline = tableTop + headerHeight + Double(index) * rowHeight + 56
         let divider = index == 0 ? "" : "<line x1=\"56\" y1=\"\(baseline - 56)\" x2=\"1544\" y2=\"\(baseline - 56)\" stroke=\"\(t.border)\" stroke-width=\"2\"/>"
         return """
         \(divider)
@@ -280,12 +285,11 @@ func comparison(_ t: Theme) -> String {
         """
     }.joined(separator: "\n")
     let body = """
-    \(sectionTitle(t, "Suki vs Wispr Flow"))
-    \(card(t, x: 1, y: top, width: 1598, height: height - top - 2, radius: 32))
-    <rect x="\(sukiX - 150)" y="\(top + 20)" width="300" height="\(height - top - 42)" rx="24" fill="\(t.selection)" fill-opacity="\(t.selectionOpacity)"/>
-    <image x="\(sukiX - 92)" y="\(top + 34)" width="56" height="56" xlink:href="\(iconDataURI)" href="\(iconDataURI)"/>
-    <text x="\(sukiX - 26)" y="\(top + 76)" class="serif" font-size="42" font-weight="600" fill="\(t.text)">Suki</text>
-    <text x="\(wisprX)" y="\(top + 76)" text-anchor="middle" class="serif" font-size="42" font-weight="600" fill="\(t.text3)">Wispr Flow</text>
+    \(section(t, "Suki vs Wispr Flow", height: height))
+    <rect x="\(sukiX - 150)" y="\(tableTop)" width="300" height="\(height - tableTop - 28)" rx="24" fill="\(t.selection)" fill-opacity="\(t.selectionOpacity)"/>
+    <image x="\(sukiX - 88)" y="\(tableTop + 22)" width="52" height="52" xlink:href="\(iconDataURI)" href="\(iconDataURI)"/>
+    <text x="\(sukiX - 24)" y="\(tableTop + 62)" class="serif" font-size="40" font-weight="600" fill="\(t.text)">Suki</text>
+    <text x="\(wisprX)" y="\(tableTop + 62)" text-anchor="middle" class="serif" font-size="40" font-weight="600" fill="\(t.text3)">Wispr Flow</text>
     \(rowMarkup)
     """
     return svg(width: 1600, height: Int(height),
@@ -294,21 +298,30 @@ func comparison(_ t: Theme) -> String {
 }
 
 func demoTitle(_ t: Theme) -> String {
-    svg(width: 1600, height: 84, title: "See Suki in action", sectionTitle(t, "See Suki in action"))
+    let height = 150.0
+    let body = """
+    \(card(t, x: 1, y: 1, width: 1598, height: height - 2, radius: 40))
+    <circle cx="104" cy="75" r="40" fill="\(t.accent)" fill-opacity="\(t.tileOpacity + 0.04)"/>
+    <path d="M92 55v40l32-20z" fill="\(t.accent)" stroke="\(t.accent)" stroke-width="6" stroke-linejoin="round"/>
+    <text x="172" y="95" class="serif" font-size="56" font-weight="600" fill="\(t.text)">See Suki in action</text>
+    <text x="1544" y="92" text-anchor="end" class="sans" font-size="30" fill="\(t.text2)">47 seconds · sound on</text>
+    """
+    return svg(width: 1600, height: Int(height), title: "See Suki in action", body)
 }
 
-func downloadButton(_ t: Theme) -> String {
+func downloadButton() -> String {
     let body = """
-    <rect width="600" height="120" rx="60" fill="\(t.button)"/>
-    <path d="M118 38v34m-14-14 14 14 14-14M102 84h32" fill="none" stroke="\(t.buttonText)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="160" y="74" class="sans" font-size="40" font-weight="600" fill="\(t.buttonText)">Download for Mac</text>
+    <rect y="6" width="600" height="114" rx="57" fill="#C9761F"/>
+    <rect width="600" height="114" rx="57" fill="#FFA946"/>
+    <path d="M118 36v34m-14-14 14 14 14-14M102 82h32" fill="none" stroke="#1A1A1A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="160" y="72" class="sans" font-size="40" font-weight="600" fill="#1A1A1A">Download for Mac</text>
     """
     return svg(width: 600, height: 120, title: "Download Suki for Mac", body)
 }
 
 try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
 let cards: [(String, (Theme) -> String)] = [
-    ("hero", hero), ("features", featureGrid), ("steps", steps), ("compare", comparison), ("download", downloadButton), ("demo", demoTitle),
+    ("hero", hero), ("features", featureGrid), ("steps", steps), ("compare", comparison), ("demo", demoTitle),
 ]
 for (name, render) in cards {
     for theme in [light, dark] {
@@ -317,3 +330,6 @@ for (name, render) in cards {
         print("Wrote \(url.path)")
     }
 }
+let downloadURL = outputDirectory.appendingPathComponent("download.svg")
+try downloadButton().write(to: downloadURL, atomically: true, encoding: .utf8)
+print("Wrote \(downloadURL.path)")

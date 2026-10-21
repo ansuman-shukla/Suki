@@ -1,39 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1600" height="778" viewBox="0 0 1600 778" role="img" aria-label="Why Suki: tiny, free, private, any AI, local models, and knows your words.">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1600" height="822" viewBox="0 0 1600 822" role="img" aria-label="Why Suki: tiny, free, private, any AI, local models, and knows your words.">
 <title>Why Suki: tiny, free, private, any AI, local models, and knows your words.</title>
 <style>
 .serif{font-family:'New York','Iowan Old Style',ui-serif,Georgia,serif}
 .sans{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Helvetica,Arial,sans-serif}
 .mono{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace}
 </style>
-<text x="4" y="64" class="serif" font-size="60" font-weight="600" fill="#E9E8E1">Why Suki</text>
-<rect x="1.0" y="104.0" width="510.0" height="320.0" rx="28.0" fill="#202020" stroke="#343432" stroke-width="2"/>
-<g transform="translate(40.0 144.0)"><rect width="80" height="80" rx="20" fill="#FFA946" fill-opacity="0.2"/><rect x="14" y="14" width="52" height="52" rx="12" fill="none" stroke="#FFA946" stroke-width="4" stroke-dasharray="7 7"/><rect x="29" y="29" width="22" height="22" rx="6" fill="#FFA946"/></g>
-<text x="40.0" y="296.0" class="serif" font-size="44" font-weight="600" fill="#E9E8E1">Tiny</text>
-<text x="40.0" y="348.0" class="sans" font-size="27" fill="#B3B2AD">Under 10MB. About 20x</text>
-<text x="40.0" y="386.0" class="sans" font-size="27" fill="#B3B2AD">smaller than Wispr Flow.</text>
-<rect x="545.0" y="104.0" width="510.0" height="320.0" rx="28.0" fill="#202020" stroke="#343432" stroke-width="2"/>
-<g transform="translate(584.0 144.0)"><rect width="80" height="80" rx="20" fill="#A26EC1" fill-opacity="0.2"/><path d="M40 40c-6-8-10-11-15-11-6 0-11 5-11 11s5 11 11 11c5 0 9-3 15-11s10-11 15-11c6 0 11 5 11 11s-5 11-11 11c-5 0-9-3-15-11z" fill="none" stroke="#A26EC1" stroke-width="5" stroke-linejoin="round"/></g>
-<text x="584.0" y="296.0" class="serif" font-size="44" font-weight="600" fill="#E9E8E1">Free</text>
-<text x="584.0" y="348.0" class="sans" font-size="27" fill="#B3B2AD">No subscription and</text>
-<text x="584.0" y="386.0" class="sans" font-size="27" fill="#B3B2AD">no word limits.</text>
-<rect x="1089.0" y="104.0" width="510.0" height="320.0" rx="28.0" fill="#202020" stroke="#343432" stroke-width="2"/>
-<g transform="translate(1128.0 144.0)"><rect width="80" height="80" rx="20" fill="#68BDB0" fill-opacity="0.2"/><rect x="22" y="36" width="36" height="28" rx="7" fill="#68BDB0"/><path d="M29 36v-7a11 11 0 0 1 22 0v7" fill="none" stroke="#68BDB0" stroke-width="5" stroke-linecap="round"/></g>
-<text x="1128.0" y="296.0" class="serif" font-size="44" font-weight="600" fill="#E9E8E1">Private</text>
-<text x="1128.0" y="348.0" class="sans" font-size="27" fill="#B3B2AD">No account, no Suki server.</text>
-<text x="1128.0" y="386.0" class="sans" font-size="27" fill="#B3B2AD">History stays on your Mac.</text>
-<rect x="1.0" y="456.0" width="510.0" height="320.0" rx="28.0" fill="#202020" stroke="#343432" stroke-width="2"/>
-<g transform="translate(40.0 496.0)"><rect width="80" height="80" rx="20" fill="#FFA946" fill-opacity="0.2"/><path d="M40 14c2 15 9 22 24 26-15 4-22 11-24 26-2-15-9-22-24-26 15-4 22-11 24-26z" fill="#FFA946"/></g>
-<text x="40.0" y="648.0" class="serif" font-size="44" font-weight="600" fill="#E9E8E1">Any AI</text>
-<text x="40.0" y="700.0" class="sans" font-size="27" fill="#B3B2AD">OpenAI, Groq, Gemini,</text>
-<text x="40.0" y="738.0" class="sans" font-size="27" fill="#B3B2AD">Claude, and more.</text>
-<rect x="545.0" y="456.0" width="510.0" height="320.0" rx="28.0" fill="#202020" stroke="#343432" stroke-width="2"/>
-<g transform="translate(584.0 496.0)"><rect width="80" height="80" rx="20" fill="#A26EC1" fill-opacity="0.2"/><rect x="20" y="22" width="40" height="28" rx="5" fill="none" stroke="#A26EC1" stroke-width="5"/><path d="M12 60h56" stroke="#A26EC1" stroke-width="5" stroke-linecap="round"/></g>
-<text x="584.0" y="648.0" class="serif" font-size="44" font-weight="600" fill="#E9E8E1">Local models</text>
-<text x="584.0" y="700.0" class="sans" font-size="27" fill="#B3B2AD">Run models on your own</text>
-<text x="584.0" y="738.0" class="sans" font-size="27" fill="#B3B2AD">Mac. Nothing leaves it.</text>
-<rect x="1089.0" y="456.0" width="510.0" height="320.0" rx="28.0" fill="#202020" stroke="#343432" stroke-width="2"/>
-<g transform="translate(1128.0 496.0)"><rect width="80" height="80" rx="20" fill="#68BDB0" fill-opacity="0.2"/><text x="40" y="53" text-anchor="middle" class="serif" font-size="38" font-weight="600" fill="#68BDB0">Aa</text></g>
-<text x="1128.0" y="648.0" class="serif" font-size="44" font-weight="600" fill="#E9E8E1">Knows your words</text>
-<text x="1128.0" y="700.0" class="sans" font-size="27" fill="#B3B2AD">Custom dictionary and</text>
-<text x="1128.0" y="738.0" class="sans" font-size="27" fill="#B3B2AD">snippets for your jargon.</text>
+<rect x="1.0" y="1.0" width="1598.0" height="820.0" rx="40.0" fill="#202020" stroke="#343432" stroke-width="2"/>
+<text x="56.0" y="100" class="serif" font-size="60" font-weight="600" fill="#E9E8E1">Why Suki</text>
+<rect x="48.0" y="150.0" width="485.3333333333333" height="300.0" rx="24.0" fill="#2A2A29" stroke="#343432" stroke-width="2"/>
+<g transform="translate(84.0 186.0)"><rect width="80" height="80" rx="20" fill="#FFA946" fill-opacity="0.2"/><rect x="14" y="14" width="52" height="52" rx="12" fill="none" stroke="#FFA946" stroke-width="4" stroke-dasharray="7 7"/><rect x="29" y="29" width="22" height="22" rx="6" fill="#FFA946"/></g>
+<text x="84.0" y="332.0" class="serif" font-size="42" font-weight="600" fill="#E9E8E1">Tiny</text>
+<text x="84.0" y="382.0" class="sans" font-size="26" fill="#B3B2AD">Under 10MB. About 20x</text>
+<text x="84.0" y="418.0" class="sans" font-size="26" fill="#B3B2AD">smaller than Wispr Flow.</text>
+<rect x="557.3333333333333" y="150.0" width="485.3333333333333" height="300.0" rx="24.0" fill="#2A2A29" stroke="#343432" stroke-width="2"/>
+<g transform="translate(593.3333333333333 186.0)"><rect width="80" height="80" rx="20" fill="#A26EC1" fill-opacity="0.2"/><path d="M40 40c-6-8-10-11-15-11-6 0-11 5-11 11s5 11 11 11c5 0 9-3 15-11s10-11 15-11c6 0 11 5 11 11s-5 11-11 11c-5 0-9-3-15-11z" fill="none" stroke="#A26EC1" stroke-width="5" stroke-linejoin="round"/></g>
+<text x="593.3333333333333" y="332.0" class="serif" font-size="42" font-weight="600" fill="#E9E8E1">Free</text>
+<text x="593.3333333333333" y="382.0" class="sans" font-size="26" fill="#B3B2AD">No subscription and</text>
+<text x="593.3333333333333" y="418.0" class="sans" font-size="26" fill="#B3B2AD">no word limits.</text>
+<rect x="1066.6666666666665" y="150.0" width="485.3333333333333" height="300.0" rx="24.0" fill="#2A2A29" stroke="#343432" stroke-width="2"/>
+<g transform="translate(1102.6666666666665 186.0)"><rect width="80" height="80" rx="20" fill="#68BDB0" fill-opacity="0.2"/><rect x="22" y="36" width="36" height="28" rx="7" fill="#68BDB0"/><path d="M29 36v-7a11 11 0 0 1 22 0v7" fill="none" stroke="#68BDB0" stroke-width="5" stroke-linecap="round"/></g>
+<text x="1102.6666666666665" y="332.0" class="serif" font-size="42" font-weight="600" fill="#E9E8E1">Private</text>
+<text x="1102.6666666666665" y="382.0" class="sans" font-size="26" fill="#B3B2AD">No account, no Suki server.</text>
+<text x="1102.6666666666665" y="418.0" class="sans" font-size="26" fill="#B3B2AD">History stays on your Mac.</text>
+<rect x="48.0" y="474.0" width="485.3333333333333" height="300.0" rx="24.0" fill="#2A2A29" stroke="#343432" stroke-width="2"/>
+<g transform="translate(84.0 510.0)"><rect width="80" height="80" rx="20" fill="#FFA946" fill-opacity="0.2"/><path d="M40 14c2 15 9 22 24 26-15 4-22 11-24 26-2-15-9-22-24-26 15-4 22-11 24-26z" fill="#FFA946"/></g>
+<text x="84.0" y="656.0" class="serif" font-size="42" font-weight="600" fill="#E9E8E1">Any AI</text>
+<text x="84.0" y="706.0" class="sans" font-size="26" fill="#B3B2AD">OpenAI, Groq, Gemini,</text>
+<text x="84.0" y="742.0" class="sans" font-size="26" fill="#B3B2AD">Claude, and more.</text>
+<rect x="557.3333333333333" y="474.0" width="485.3333333333333" height="300.0" rx="24.0" fill="#2A2A29" stroke="#343432" stroke-width="2"/>
+<g transform="translate(593.3333333333333 510.0)"><rect width="80" height="80" rx="20" fill="#A26EC1" fill-opacity="0.2"/><rect x="20" y="22" width="40" height="28" rx="5" fill="none" stroke="#A26EC1" stroke-width="5"/><path d="M12 60h56" stroke="#A26EC1" stroke-width="5" stroke-linecap="round"/></g>
+<text x="593.3333333333333" y="656.0" class="serif" font-size="42" font-weight="600" fill="#E9E8E1">Local models</text>
+<text x="593.3333333333333" y="706.0" class="sans" font-size="26" fill="#B3B2AD">Run models on your own</text>
+<text x="593.3333333333333" y="742.0" class="sans" font-size="26" fill="#B3B2AD">Mac. Nothing leaves it.</text>
+<rect x="1066.6666666666665" y="474.0" width="485.3333333333333" height="300.0" rx="24.0" fill="#2A2A29" stroke="#343432" stroke-width="2"/>
+<g transform="translate(1102.6666666666665 510.0)"><rect width="80" height="80" rx="20" fill="#68BDB0" fill-opacity="0.2"/><text x="40" y="53" text-anchor="middle" class="serif" font-size="38" font-weight="600" fill="#68BDB0">Aa</text></g>
+<text x="1102.6666666666665" y="656.0" class="serif" font-size="42" font-weight="600" fill="#E9E8E1">Knows your words</text>
+<text x="1102.6666666666665" y="706.0" class="sans" font-size="26" fill="#B3B2AD">Custom dictionary and</text>
+<text x="1102.6666666666665" y="742.0" class="sans" font-size="26" fill="#B3B2AD">snippets for your jargon.</text>
 </svg>
