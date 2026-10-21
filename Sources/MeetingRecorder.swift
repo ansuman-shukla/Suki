@@ -140,6 +140,20 @@ final class MeetingRecorder: ObservableObject {
         }
     }
 
+    /// Blank or unchanged titles keep the old one. Memory only changes once the new title is on disk.
+    func rename(_ meeting: MeetingRecord, to title: String) {
+        guard let index = meetings.firstIndex(where: { $0.id == meeting.id }),
+              let title = MeetingTranscriptCore.renamedTitle(title, current: meetings[index].title) else { return }
+        var renamed = meetings[index]
+        renamed.title = title
+        do {
+            try store.save(renamed)
+            meetings[index] = renamed
+        } catch {
+            errorMessage = "Couldn't rename this meeting."
+        }
+    }
+
     /// Feeds one batch of a speaker's samples; cuts and uploads a chunk when one is ready.
     /// `arrival` is seconds since the start when the audio thread delivered the batch.
     func ingest(_ samples: [Float], from speaker: MeetingSpeaker, arrival: TimeInterval) {

@@ -25,6 +25,7 @@ struct MeetingsView: View {
             onRecord: { Task { await recorder.start() } },
             onStop: { Task { await recorder.stop() } },
             onCopy: recorder.copy,
+            onRename: recorder.rename,
             onDelete: recorder.delete
         )
     }

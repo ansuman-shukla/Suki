@@ -20,6 +20,7 @@ struct MeetingsContent: View {
     var onRecord: () -> Void = {}
     var onStop: () -> Void = {}
     var onCopy: (MeetingRecord) -> Void = { _ in }
+    var onRename: (MeetingRecord, String) -> Void = { _, _ in }
     var onDelete: (MeetingRecord) -> Void = { _ in }
     @State var openMeetingID: UUID?
 
@@ -32,6 +33,7 @@ struct MeetingsContent: View {
                     meeting: meeting,
                     onBack: { openMeetingID = nil },
                     onCopy: { onCopy(meeting) },
+                    onRename: { onRename(meeting, $0) },
                     onDelete: { onDelete(meeting) }
                 )
                 .transition(.opacity)

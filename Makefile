@@ -70,7 +70,7 @@ SOUND_FILES = $(shell find Resources/Sounds -type f -name '*.caf' | LC_ALL=C sor
 ARCH ?= $(shell uname -m)
 
 # Pick the icon source based on which bundle we are building. Dev builds get
-# a DEV badge on the icon so a developer's dock shows at a glance
+# a hammer badge on the icon so a developer's dock shows at a glance
 # which Suki they are running when both are installed side by side.
 ifeq ($(APP_NAME),Suki Dev)
 ICON_SOURCE = Resources/AppIcon-Dev-Source.png
@@ -80,7 +80,10 @@ ICON_SOURCE = Resources/AppIcon-Source.png
 ICON_ICNS = Resources/AppIcon.icns
 endif
 
-.PHONY: all check clean run icon dmg codesign-dmg notarize test typecheck validate
+INSTALL_DIR ?= /Applications
+INSTALLED_APP = $(INSTALL_DIR)/$(APP_NAME).app
+
+.PHONY: all check clean run install icon dmg codesign-dmg notarize test typecheck validate
 
 all: $(APP_EXECUTABLE_TARGET)
 
@@ -209,3 +212,14 @@ clean:
 
 run: all
 	open "$(APP_BUNDLE)"
+
+# Copy the signed bundle into Applications so it appears in Launchpad and
+# Spotlight. Permission grants carry over because they follow the signing
+# identity, not the bundle path.
+install: all
+	@osascript -e 'tell application id "$(BUNDLE_ID)" to quit' >/dev/null 2>&1 || true
+	@while pgrep -xq "$(APP_NAME)"; do sleep 0.2; done
+	@rm -rf "$(INSTALLED_APP)"
+	@ditto "$(APP_BUNDLE)" "$(INSTALLED_APP)"
+	@open "$(INSTALLED_APP)"
+	@echo "Installed $(INSTALLED_APP)"
