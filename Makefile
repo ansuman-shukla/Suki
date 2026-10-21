@@ -69,7 +69,7 @@ SOUND_FILES = $(shell find Resources/Sounds -type f -name '*.caf' | LC_ALL=C sor
 ARCH ?= $(shell uname -m)
 
 # Pick the icon source based on which bundle we are building. Dev builds get
-# a DEV badge on the icon so a developer's dock shows at a glance
+# a hammer badge on the icon so a developer's dock shows at a glance
 # which Suki they are running when both are installed side by side.
 ifeq ($(APP_NAME),Suki Dev)
 ICON_SOURCE = Resources/AppIcon-Dev-Source.png
