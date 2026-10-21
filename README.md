@@ -14,6 +14,11 @@
   <sub>Free · Open source · macOS 13+ · Apple Silicon and Intel</sub>
 </p>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/demo-dark.svg">
+  <img src="docs/assets/readme/demo-light.svg" width="100%" alt="See Suki in action">
+</picture>
+
 https://github.com/user-attachments/assets/b22efd06-0946-4ac7-b02e-1bec8603acff
 
 <br>
