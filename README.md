@@ -1,15 +1,9 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/hero-dark.svg">
-  <img src="docs/assets/readme/hero-light.svg" width="100%" alt="Talk. Suki types. Dictation for every app on your Mac. Free, private, and under 10MB.">
-</picture>
-
-<p align="center">
-  <a href="https://github.com/ansuman-shukla/Suki/releases/latest">
-    <img src="docs/assets/readme/download.svg" width="210" alt="Download Suki for Mac">
-  </a>
-  <br>
-  <sub>Free · Open source · macOS 13+ · Apple Silicon and Intel</sub>
-</p>
+<a href="https://github.com/ansuman-shukla/Suki/releases/latest">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/hero-dark.svg">
+    <img src="docs/assets/readme/hero-light.svg" width="100%" alt="Talk. Suki types. Free, private dictation for every app on your Mac. Download for Mac, macOS 13 or later, Apple Silicon and Intel.">
+  </picture>
+</a>
 
 https://github.com/user-attachments/assets/b22efd06-0946-4ac7-b02e-1bec8603acff
 
