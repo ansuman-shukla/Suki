@@ -9,12 +9,6 @@ import Carbon
 import os.log
 private let recordingLog = OSLog(subsystem: "com.ansumanshukla.suki", category: "Recording")
 
-struct VoiceMacro: Codable, Identifiable, Equatable {
-    var id: UUID = UUID()
-    var command: String
-    var payload: String
-}
-
 struct PrecomputedMacro {
     let original: VoiceMacro
     let normalizedCommand: String
@@ -2094,7 +2088,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if triggerMode == .toggle {
             cancelPendingShortcutStart()
         }
-        playAlertSound(named: "Basso")
+        playAlertSound(.error)
         scheduleReadyStatusReset(after: 2, matching: ["Select text to transform first"])
     }
 
@@ -2110,7 +2104,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if triggerMode == .toggle {
             cancelPendingShortcutStart()
         }
-        playAlertSound(named: "Basso")
+        playAlertSound(.error)
         scheduleReadyStatusReset(after: 2, matching: ["Fix Edit Mode modifier"])
     }
 
@@ -2191,7 +2185,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             activeRecordingTriggerMode = nil
             currentSessionIntent = .dictation
             shortcutSessionController.reset()
-            playAlertSound(named: "Basso")
+            playAlertSound(.error)
             showScreenshotPermissionAlert(message: message)
             return false
         }
@@ -2382,7 +2376,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
                 )
             }
             overlayShown = true
-            self.playAlertSound(named: "Tink")
+            self.playAlertSound(.start)
         }
         audioRecorder.onRecordingFailure = { [weak self] error in
             DispatchQueue.main.async {
@@ -2512,15 +2506,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
         precomputedMacros = voiceMacros.map { macro in
             PrecomputedMacro(
                 original: macro,
-                normalizedCommand: normalize(macro.command)
+                normalizedCommand: SnippetList.normalizedTrigger(macro.command)
             )
         }
-    }
-
-    private func normalize(_ text: String) -> String {
-        let lowercased = text.lowercased()
-        let strippedPunctuation = lowercased.components(separatedBy: CharacterSet.punctuationCharacters).joined()
-        return strippedPunctuation.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func parseTranscriptCommands(
@@ -2564,16 +2552,23 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return "\(status); detected press enter command"
     }
 
+    func playAlertSound(_ sound: SukiSound) {
+        play(sound.makeSound())
+    }
+
     func playAlertSound(named name: String) {
+        play(NSSound(named: name))
+    }
+
+    private func play(_ sound: NSSound?) {
         guard alertSoundsEnabled else { return }
 
-        let sound = NSSound(named: name)
         sound?.volume = soundVolume
         sound?.play()
     }
 
     private func findMatchingMacro(for transcript: String) -> VoiceMacro? {
-        let normalizedTranscript = normalize(transcript)
+        let normalizedTranscript = SnippetList.normalizedTrigger(transcript)
         guard !normalizedTranscript.isEmpty else { return nil }
 
         return precomputedMacros.first {
@@ -2770,7 +2765,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         isTranscribing = true
         statusText = "Preparing audio..."
         errorMessage = nil
-        playAlertSound(named: "Pop")
+        playAlertSound(.stop)
         overlayManager.showTranscribing()
         audioRecorder.stopRecording { [weak self] fileURL in
             guard let self else { return }
@@ -3347,7 +3342,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             statusText = "Screenshot Required"
             overlayManager.dismiss()
 
-            playAlertSound(named: "Basso")
+            playAlertSound(.error)
             showScreenshotPermissionAlert(message: message)
         }
         // Non-permission errors (transient failures) — continue recording without context

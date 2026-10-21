@@ -21,6 +21,8 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/GeminiLiveTranscriptionService.swift \
 	Sources/GeminiTranscriptionService.swift \
 	Sources/GlobalShortcutBackend.swift \
+	Sources/HomeCopy.swift \
+	Sources/HomeHistoryGrouping.swift \
 	Sources/LLMAPITransport.swift \
 	Sources/LLMCooldownManager.swift \
 	Sources/LiveTranscriptionProvider.swift \
@@ -33,11 +35,14 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/MeetingTranscriptionPipeline.swift \
 	Sources/ModelConfiguration.swift \
 	Sources/ModifierKeyEventState.swift \
+	Sources/PipelineHistoryItem.swift \
 	Sources/PostProcessingService.swift \
 	Sources/RealtimeTranscriptionService.swift \
 	Sources/RecordingCaptureTiming.swift \
 	Sources/RecordingTimerPreference.swift \
 	Sources/ShortcutBinding.swift \
+	Sources/SnippetList.swift \
+	Sources/SukiSound.swift \
 	Sources/SyntheticKeystrokeTyper.swift \
 	Sources/TranscriptionErrorPresentationCore.swift \
 	Sources/TranscriptTextCore.swift \
@@ -45,6 +50,8 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/TranscriptionProvider.swift \
 	Sources/TranscriptionService.swift \
 	Sources/UpdateManager.swift \
+	Sources/VocabularyList.swift \
+	Sources/WaveformLayout.swift \
 	Sources/ShortcutCore/DictationShortcutSessionController.swift \
 	Sources/ShortcutCore/ShortcutMatcher.swift \
 	Sources/ShortcutCore/ShortcutModels.swift
@@ -53,6 +60,7 @@ SHELL_SCRIPTS = $(shell find .github/scripts .agents/skills -name '*.sh' -type f
 YAML_FILES = $(shell find .github -type f \( -name '*.yml' -o -name '*.yaml' \) | LC_ALL=C sort)
 RESOURCES = $(CONTENTS)/Resources
 FONT_FILES = $(shell find Resources/Fonts -type f \( -name '*.ttf' -o -name '*-OFL.txt' \) | LC_ALL=C sort)
+SOUND_FILES = $(shell find Resources/Sounds -type f -name '*.caf' | LC_ALL=C sort)
 ARCH ?= $(shell uname -m)
 
 # Pick the icon source based on which bundle we are building. Dev builds get
@@ -70,7 +78,7 @@ endif
 
 all: $(APP_EXECUTABLE_TARGET)
 
-$(APP_EXECUTABLE_TARGET): $(SOURCES) Info.plist $(ICON_ICNS) $(FONT_FILES)
+$(APP_EXECUTABLE_TARGET): $(SOURCES) Info.plist $(ICON_ICNS) $(FONT_FILES) $(SOUND_FILES)
 	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES)"
 ifeq ($(ARCH),universal)
 	swiftc \
@@ -105,6 +113,8 @@ endif
 	@cp $(ICON_ICNS) "$(RESOURCES)/AppIcon.icns"
 	@mkdir -p "$(RESOURCES)/Fonts"
 	@cp $(FONT_FILES) "$(RESOURCES)/Fonts/"
+	@mkdir -p "$(RESOURCES)/Sounds"
+	@cp $(SOUND_FILES) "$(RESOURCES)/Sounds/"
 	@plutil -replace NSMicrophoneUsageDescription -string "$(APP_NAME) needs microphone access to transcribe your speech." "$(CONTENTS)/Info.plist"
 	@plutil -replace NSSpeechRecognitionUsageDescription -string "$(APP_NAME) needs speech recognition to convert your voice to text." "$(CONTENTS)/Info.plist"
 	@plutil -replace NSAccessibilityUsageDescription -string "$(APP_NAME) needs accessibility access to detect the text cursor position and paste transcribed text." "$(CONTENTS)/Info.plist"

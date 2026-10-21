@@ -10,7 +10,7 @@ struct HubView: View {
 
             if router.isSettingsPresented {
                 HubModal(onClose: { router.isSettingsPresented = false }) {
-                    SettingsView()
+                    SettingsView(onClose: { router.isSettingsPresented = false })
                 }
                 .transition(.opacity)
                 .zIndex(1)
