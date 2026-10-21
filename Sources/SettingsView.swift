@@ -24,7 +24,7 @@ struct ProviderSettingsFields: View {
 
     private func commitAPIBaseURL() {
         let trimmed = apiBaseURLInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        apiBaseURLInput = trimmed.isEmpty ? AppState.defaultAPIBaseURL : trimmed
+        apiBaseURLInput = trimmed.isEmpty ? AppState.groqBaseURL : trimmed
     }
 
     private func commitPostProcessingModel() {
@@ -97,7 +97,7 @@ struct ProviderSettingsFields: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 8) {
-                TextField(AppState.defaultAPIBaseURL, text: $apiBaseURLInput)
+                TextField(AppState.groqBaseURL, text: $apiBaseURLInput)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
                     .focused($isEditingAPIBaseURL)
@@ -111,7 +111,7 @@ struct ProviderSettingsFields: View {
                     }
 
                 Button("Reset to Default") {
-                    apiBaseURLInput = AppState.defaultAPIBaseURL
+                    apiBaseURLInput = AppState.groqBaseURL
                 }
                 .font(.caption)
             }

@@ -5,6 +5,7 @@ enum LLMProviderTests {
         testPresets()
         testMigration()
         testResolve()
+        testLegacyKeyMigration()
     }
 
     private static func testPresets() {
@@ -62,5 +63,42 @@ enum LLMProviderTests {
             customAPIKey: " custom-key "
         )
         TestSupport.expectEqual(custom, LLMConfiguration(provider: .custom, baseURL: "https://custom.invalid/v1", apiKey: "custom-key"))
+    }
+
+    private static func testLegacyKeyMigration() {
+        let groq = LLMProvider.migrateLegacySettings(legacyBaseURL: "", providerAPIKeys: [.groq: "legacy", .openAI: "openai"])
+        TestSupport.expectEqual(groq, MigratedLLMSettings(
+            provider: .groq,
+            providerAPIKeys: [.groq: "legacy", .openAI: "openai"],
+            customBaseURL: nil,
+            customAPIKey: nil
+        ))
+
+        let anthropic = LLMProvider.migrateLegacySettings(
+            legacyBaseURL: "https://api.anthropic.com/v1",
+            providerAPIKeys: [.groq: "legacy"]
+        )
+        TestSupport.expectEqual(anthropic.provider, .anthropic)
+        TestSupport.expectEqual(anthropic.providerAPIKeys[.anthropic], "legacy")
+        TestSupport.expectEqual(anthropic.providerAPIKeys[.groq], "")
+
+        // A key already saved for that provider (e.g. for transcription) wins.
+        let openAI = LLMProvider.migrateLegacySettings(
+            legacyBaseURL: "https://api.openai.com/v1",
+            providerAPIKeys: [.groq: "legacy", .openAI: "saved-openai"]
+        )
+        TestSupport.expectEqual(openAI.providerAPIKeys[.openAI], "saved-openai")
+        TestSupport.expectEqual(openAI.providerAPIKeys[.groq], "")
+
+        let custom = LLMProvider.migrateLegacySettings(
+            legacyBaseURL: "https://router.example.invalid/api/v1/",
+            providerAPIKeys: [.groq: "legacy", .gemini: "gemini"]
+        )
+        TestSupport.expectEqual(custom, MigratedLLMSettings(
+            provider: .custom,
+            providerAPIKeys: [.groq: "", .gemini: "gemini"],
+            customBaseURL: "https://router.example.invalid/api/v1",
+            customAPIKey: "legacy"
+        ))
     }
 }

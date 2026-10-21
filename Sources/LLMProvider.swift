@@ -97,11 +97,48 @@ enum LLMProvider: String, CaseIterable, Identifiable {
         return allCases.first { $0.presetBaseURL == normalized } ?? .custom
     }
 
+    /// Before providers existed, one key was saved under Groq's account
+    /// whatever the base URL was. Moves it to the provider it belongs to.
+    static func migrateLegacySettings(
+        legacyBaseURL: String,
+        providerAPIKeys: [APIProvider: String]
+    ) -> MigratedLLMSettings {
+        let provider = migratedSelection(storedBaseURL: legacyBaseURL)
+        var keys = providerAPIKeys
+        let legacyKey = keys[.groq] ?? ""
+        var customEndpoint: (baseURL: String, apiKey: String)?
+        guard provider != .groq else {
+            return MigratedLLMSettings(provider: provider, providerAPIKeys: keys, customBaseURL: nil, customAPIKey: nil)
+        }
+        if let credential = provider.credential {
+            if keys[credential]?.isEmpty ?? true {
+                keys[credential] = legacyKey
+            }
+        } else {
+            customEndpoint = (normalizedBaseURL(legacyBaseURL), legacyKey)
+        }
+        keys[.groq] = ""
+        return MigratedLLMSettings(
+            provider: provider,
+            providerAPIKeys: keys,
+            customBaseURL: customEndpoint?.baseURL,
+            customAPIKey: customEndpoint?.apiKey
+        )
+    }
+
     static func normalizedBaseURL(_ url: String) -> String {
         var trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
         while trimmed.hasSuffix("/") { trimmed.removeLast() }
         return trimmed
     }
+}
+
+struct MigratedLLMSettings: Equatable {
+    let provider: LLMProvider
+    let providerAPIKeys: [APIProvider: String]
+    /// Set only when the legacy base URL becomes the custom endpoint.
+    let customBaseURL: String?
+    let customAPIKey: String?
 }
 
 struct LLMModelSelection: Equatable {

@@ -192,8 +192,10 @@ final class AppState: ObservableObject, @unchecked Sendable {
         case muted(previouslyMuted: Bool)
     }
 
-    private let apiKeyStorageKey = "groq_api_key"
-    private let apiBaseURLStorageKey = "api_base_url"
+    private let legacyAPIBaseURLStorageKey = "api_base_url"
+    private let llmProviderStorageKey = "llm_provider"
+    private let customLLMBaseURLStorageKey = "custom_llm_base_url"
+    private let customLLMAPIKeyStorageKey = "custom_llm_api_key"
     private let transcriptionModelStorageKey = "transcription_model"
     private let transcriptionAPIURLStorageKey = "transcription_api_url"
     private let transcriptionAPIKeyStorageKey = "transcription_api_key"
@@ -289,38 +291,47 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
     }
 
-    @Published var apiKey: String {
+    @Published var llmProvider: LLMProvider {
         didSet {
-            guard !isApplyingAPIConfiguration else { return }
-            persistAPIKey(apiKey)
+            UserDefaults.standard.set(llmProvider.rawValue, forKey: llmProviderStorageKey)
+            guard oldValue != llmProvider else { return }
+            // Model IDs are provider-specific, so start from the new provider's defaults.
+            if let defaults = llmProvider.defaultModels {
+                postProcessingModel = defaults.postProcessing
+                postProcessingFallbackModel = defaults.postProcessingFallback
+                contextModel = defaults.context
+            }
             rebuildContextService()
         }
     }
 
-    @Published var apiBaseURL: String {
-        didSet {
-            guard !isApplyingAPIConfiguration else { return }
-            persistAPIBaseURL(apiBaseURL)
-            rebuildContextService()
-        }
+    @Published private(set) var customLLMBaseURL: String
+    @Published private(set) var customLLMAPIKey: String
+
+    var llmConfiguration: LLMConfiguration {
+        LLMConfiguration.resolve(
+            provider: llmProvider,
+            providerAPIKey: llmProvider.credential.flatMap { providerAPIKeys[$0] } ?? "",
+            customBaseURL: customLLMBaseURL,
+            customAPIKey: customLLMAPIKey
+        )
     }
 
-    @Published var transcriptionAPIURL: String {
-        didSet {
-            guard !isApplyingAPIConfiguration else { return }
-            persistOptionalAPIValue(transcriptionAPIURL, account: transcriptionAPIURLStorageKey)
-        }
-    }
+    /// Key and endpoint for cleanup, Edit Mode, and context inference.
+    var apiKey: String { llmConfiguration.apiKey }
+    var apiBaseURL: String { llmConfiguration.baseURL }
 
-    @Published var transcriptionAPIKey: String {
-        didSet {
-            guard !isApplyingAPIConfiguration else { return }
-            persistOptionalAPIValue(transcriptionAPIKey, account: transcriptionAPIKeyStorageKey)
-        }
-    }
+    @Published private(set) var transcriptionAPIURL: String
+    @Published private(set) var transcriptionAPIKey: String
 
-    // Publish only after the complete configuration transaction has persisted.
-    @Published private(set) var committedAPIConfiguration: ValidatedAPIConfiguration
+    var committedAPIConfiguration: ValidatedAPIConfiguration {
+        ValidatedAPIConfiguration(
+            apiKey: apiKey,
+            baseURL: apiBaseURL,
+            transcriptionAPIURL: transcriptionAPIURL,
+            transcriptionAPIKey: transcriptionAPIKey
+        )
+    }
 
     @Published var transcriptionModel: String {
         didSet {
@@ -528,7 +539,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// OpenAI and Gemini keys, shared by upload and live transcription.
+    /// One key per provider, shared by the LLM and transcription settings.
     @Published private(set) var providerAPIKeys: [APIProvider: String]
 
     @Published var transcriptionProvider: TranscriptionProvider {
@@ -683,16 +694,18 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private var pendingMicrophonePermissionTriggerMode: RecordingTriggerMode?
     private var pendingMicrophonePermissionSelectionSnapshot: AppSelectionSnapshot?
     private var pendingMicrophonePermissionManualCommandRequested: Bool?
-    private var isApplyingAPIConfiguration = false
     private let postTranscriptionUpdateReminderDuration: TimeInterval = 7
 
     init() {
         UserDefaults.standard.removeObject(forKey: "force_http2_transcription")
         let hasCompletedSetup = UserDefaults.standard.bool(forKey: "hasCompletedSetup")
-        let apiKey = Self.loadStoredAPIKey(account: apiKeyStorageKey)
-        let apiBaseURL = Self.loadStoredAPIBaseURL(account: "api_base_url")
+        let legacyAPIBaseURL = Self.loadOptionalStoredAPIValue(account: legacyAPIBaseURLStorageKey)
         for key in [contextModelStorageKey, postProcessingModelStorageKey, postProcessingFallbackModelStorageKey] {
-            ModelConfiguration.migrateGroqSelection(key: key, baseURL: apiBaseURL, defaults: .standard)
+            ModelConfiguration.migrateGroqSelection(
+                key: key,
+                baseURL: legacyAPIBaseURL.isEmpty ? Self.groqBaseURL : legacyAPIBaseURL,
+                defaults: .standard
+            )
         }
         let transcriptionModel = UserDefaults.standard.string(forKey: transcriptionModelStorageKey) ?? Self.defaultTranscriptionModel
         let transcriptionAPIURL = Self.loadOptionalStoredAPIValue(account: transcriptionAPIURLStorageKey)
@@ -769,6 +782,32 @@ final class AppState: ObservableObject, @unchecked Sendable {
         for provider in APIProvider.allCases {
             providerAPIKeys[provider] = Self.loadStoredAPIKey(account: provider.apiKeyStorageAccount)
         }
+        var customLLMBaseURL = Self.loadOptionalStoredAPIValue(account: customLLMBaseURLStorageKey)
+        var customLLMAPIKey = Self.loadStoredAPIKey(account: customLLMAPIKeyStorageKey)
+        let storedLLMProvider = UserDefaults.standard.string(forKey: llmProviderStorageKey).flatMap(LLMProvider.init(rawValue:))
+        let llmProvider: LLMProvider
+        if let storedLLMProvider {
+            llmProvider = storedLLMProvider
+        } else {
+            let migrated = LLMProvider.migrateLegacySettings(legacyBaseURL: legacyAPIBaseURL, providerAPIKeys: providerAPIKeys)
+            llmProvider = migrated.provider
+            for provider in APIProvider.allCases where migrated.providerAPIKeys[provider] != providerAPIKeys[provider] {
+                Self.persistOptionalAPIValue(migrated.providerAPIKeys[provider] ?? "", account: provider.apiKeyStorageAccount)
+            }
+            providerAPIKeys = migrated.providerAPIKeys
+            if let baseURL = migrated.customBaseURL, let key = migrated.customAPIKey {
+                customLLMBaseURL = baseURL
+                customLLMAPIKey = key
+                Self.persistOptionalAPIValue(baseURL, account: customLLMBaseURLStorageKey)
+                Self.persistOptionalAPIValue(key, account: customLLMAPIKeyStorageKey)
+            }
+        }
+        let initialLLMConfiguration = LLMConfiguration.resolve(
+            provider: llmProvider,
+            providerAPIKey: llmProvider.credential.flatMap { providerAPIKeys[$0] } ?? "",
+            customBaseURL: customLLMBaseURL,
+            customAPIKey: customLLMAPIKey
+        )
         let transcriptionProvider = TranscriptionProvider.initialSelection(
             storedValue: UserDefaults.standard.string(forKey: transcriptionProviderStorageKey)
         )
@@ -809,24 +848,19 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let selectedMicrophoneID = UserDefaults.standard.string(forKey: selectedMicrophoneStorageKey) ?? "default"
 
         self.contextService = Self.makeAppContextService(
-            apiKey: apiKey,
-            baseURL: apiBaseURL,
+            apiKey: initialLLMConfiguration.apiKey,
+            baseURL: initialLLMConfiguration.baseURL,
             customContextPrompt: customContextPrompt,
             contextModel: contextModel,
             contextScreenshotMaxDimension: contextScreenshotMaxDimension,
             desktopScreenshotFallbackEnabled: desktopScreenshotFallbackEnabled
         )
         self.hasCompletedSetup = hasCompletedSetup
-        self.apiKey = apiKey
-        self.apiBaseURL = apiBaseURL
+        self.llmProvider = llmProvider
+        self.customLLMBaseURL = customLLMBaseURL
+        self.customLLMAPIKey = customLLMAPIKey
         self.transcriptionAPIURL = transcriptionAPIURL
         self.transcriptionAPIKey = transcriptionAPIKey
-        self.committedAPIConfiguration = ValidatedAPIConfiguration(
-            apiKey: apiKey,
-            baseURL: apiBaseURL,
-            transcriptionAPIURL: transcriptionAPIURL,
-            transcriptionAPIKey: transcriptionAPIKey
-        )
         self.transcriptionModel = transcriptionModel
         self.postProcessingModel = postProcessingModel
         self.postProcessingFallbackModel = postProcessingFallbackModel
@@ -877,6 +911,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
         refreshAvailableMicrophones()
         installAudioDeviceObservers()
 
+        if storedLLMProvider != llmProvider {
+            UserDefaults.standard.set(llmProvider.rawValue, forKey: llmProviderStorageKey)
+        }
         if storedLiveProvider != liveTranscriptionProvider.rawValue {
             // Pin the migrated default so later realtime toggles do not change it.
             UserDefaults.standard.set(liveTranscriptionProvider.rawValue, forKey: liveTranscriptionProviderStorageKey)
@@ -941,16 +978,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return ""
     }
 
-    private func persistAPIKey(_ value: String) {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            AppSettingsStorage.delete(account: apiKeyStorageKey)
-        } else {
-            AppSettingsStorage.save(trimmed, account: apiKeyStorageKey)
-        }
-    }
-
-    static let defaultAPIBaseURL = APIConfigurationSaveFlow.defaultBaseURL
+    static let groqBaseURL = APIProvider.groq.openAICompatibleBaseURL!
 
     private struct StoredShortcutConfiguration {
         let hold: ShortcutBinding
@@ -972,13 +1000,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let binding: ShortcutBinding?
         let hadStoredValue: Bool
         let didNormalize: Bool
-    }
-
-    private static func loadStoredAPIBaseURL(account: String) -> String {
-        if let stored = AppSettingsStorage.load(account: account), !stored.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return stored
-        }
-        return defaultAPIBaseURL
     }
 
     private static func loadStoredContextModel(key: String) -> String {
@@ -1101,45 +1122,43 @@ final class AppState: ObservableObject, @unchecked Sendable {
         )
     }
 
+    /// Applies a validated key and base URL from the Setup API key step.
     func updateAPIConfiguration(
         apiKey: String,
         baseURL: String,
         transcriptionAPIURL: String,
         transcriptionAPIKey: String
     ) {
-        isApplyingAPIConfiguration = true
-        self.apiKey = apiKey
-        self.apiBaseURL = baseURL
-        self.transcriptionAPIURL = transcriptionAPIURL
-        self.transcriptionAPIKey = transcriptionAPIKey
-        isApplyingAPIConfiguration = false
-        persistAPIKey(apiKey)
-        persistAPIBaseURL(baseURL)
-        persistOptionalAPIValue(transcriptionAPIURL, account: transcriptionAPIURLStorageKey)
-        persistOptionalAPIValue(transcriptionAPIKey, account: transcriptionAPIKeyStorageKey)
-        rebuildContextService()
-        committedAPIConfiguration = ValidatedAPIConfiguration(
-            apiKey: apiKey,
-            baseURL: baseURL,
-            transcriptionAPIURL: transcriptionAPIURL,
-            transcriptionAPIKey: transcriptionAPIKey
-        )
+        let provider = LLMProvider.migratedSelection(storedBaseURL: baseURL)
+        if let credential = provider.credential {
+            setProviderAPIKey(apiKey, for: credential)
+        } else {
+            setCustomLLMEndpoint(baseURL: baseURL, apiKey: apiKey)
+        }
+        llmProvider = provider
+        setCustomTranscriptionEndpoint(baseURL: transcriptionAPIURL, apiKey: transcriptionAPIKey)
+    }
+
+    func setCustomLLMEndpoint(baseURL: String, apiKey: String) {
+        customLLMBaseURL = LLMProvider.normalizedBaseURL(baseURL)
+        customLLMAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        Self.persistOptionalAPIValue(customLLMBaseURL, account: customLLMBaseURLStorageKey)
+        Self.persistOptionalAPIValue(customLLMAPIKey, account: customLLMAPIKeyStorageKey)
+        if llmProvider == .custom { rebuildContextService() }
+    }
+
+    func setCustomTranscriptionEndpoint(baseURL: String, apiKey: String) {
+        transcriptionAPIURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        transcriptionAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        Self.persistOptionalAPIValue(transcriptionAPIURL, account: transcriptionAPIURLStorageKey)
+        Self.persistOptionalAPIValue(transcriptionAPIKey, account: transcriptionAPIKeyStorageKey)
     }
 
     private func rebuildContextService() {
         contextService = makeAppContextService()
     }
 
-    private func persistAPIBaseURL(_ value: String) {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty || trimmed == Self.defaultAPIBaseURL {
-            AppSettingsStorage.delete(account: apiBaseURLStorageKey)
-        } else {
-            AppSettingsStorage.save(trimmed, account: apiBaseURLStorageKey)
-        }
-    }
-
-    private func persistOptionalAPIValue(_ value: String, account: String) {
+    private static func persistOptionalAPIValue(_ value: String, account: String) {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             AppSettingsStorage.delete(account: account)
@@ -1202,8 +1221,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
 
     func setProviderAPIKey(_ key: String, for provider: APIProvider) {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        persistOptionalAPIValue(trimmed, account: provider.apiKeyStorageAccount)
+        Self.persistOptionalAPIValue(trimmed, account: provider.apiKeyStorageAccount)
         providerAPIKeys[provider] = trimmed
+        if provider == llmProvider.credential { rebuildContextService() }
     }
 
     func liveTranscriptionConfiguration(
