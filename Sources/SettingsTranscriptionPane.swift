@@ -151,18 +151,17 @@ struct TranscriptionSettingsPane: View {
             )
             Group {
                 SettingsRow("Invocation style", detail: invocationStyleDetail) {
-                    Picker("Invocation Style", selection: Binding(
-                        get: { appState.commandModeStyle },
-                        set: { newValue in
-                            _ = appState.setCommandModeStyle(newValue)
-                        }
-                    )) {
-                        ForEach(CommandModeStyle.allCases) { style in
-                            Text(style.title).tag(style)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                    SukiSegmentedPicker(
+                        "Invocation Style",
+                        selection: Binding(
+                            get: { appState.commandModeStyle },
+                            set: { newValue in
+                                _ = appState.setCommandModeStyle(newValue)
+                            }
+                        ),
+                        options: Array(CommandModeStyle.allCases),
+                        label: \.title
+                    )
                     .fixedSize()
                     .disabled(!appState.isCommandModeEnabled)
                 }

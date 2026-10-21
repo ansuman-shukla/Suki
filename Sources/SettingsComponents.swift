@@ -194,6 +194,54 @@ private struct SukiToggle: View {
     }
 }
 
+/// Segmented control in the app palette: the selected segment uses the same black fill as `SukiToggle`.
+/// Replaces `.pickerStyle(.segmented)`, which always draws in the system accent blue.
+struct SukiSegmentedPicker<Value: Hashable>: View {
+    let title: String
+    @Binding var selection: Value
+    let options: [Value]
+    let label: (Value) -> String
+    @Environment(\.isEnabled) private var isEnabled
+
+    init(_ title: String, selection: Binding<Value>, options: [Value], label: @escaping (Value) -> String) {
+        self.title = title
+        _selection = selection
+        self.options = options
+        self.label = label
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(options, id: \.self) { option in
+                let isSelected = option == selection
+                Button { selection = option } label: {
+                    Text(label(option))
+                        .font(SukiFont.ui(12, .medium))
+                        .lineLimit(1)
+                        .foregroundStyle(isSelected ? Theme.primaryButtonText : Theme.textPrimary)
+                        .padding(.horizontal, 10)
+                        .frame(maxWidth: .infinity, minHeight: 22)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.sm, style: .continuous)
+                                .fill(isSelected ? Theme.toggleOn : .clear)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(RoundedRectangle(cornerRadius: Radius.md, style: .continuous).fill(Theme.secondaryButton))
+        .opacity(isEnabled ? 1 : 0.45)
+        .animation(.suki, value: selection)
+        .accessibilityRepresentation {
+            Picker(title, selection: $selection) {
+                ForEach(options, id: \.self) { Text(label($0)).tag($0) }
+            }
+        }
+    }
+}
+
 /// Subtle gray button, or the black primary button when `prominent`.
 struct SettingsButtonStyle: ButtonStyle {
     var prominent = false

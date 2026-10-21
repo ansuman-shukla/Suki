@@ -551,7 +551,7 @@ struct RunLogEntryView: View {
                                         .font(.caption2)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 3)
-                                        .background(Color.accentColor.opacity(0.12))
+                                        .background(Theme.selection)
                                         .cornerRadius(4)
                                 }
                             }
@@ -590,7 +590,7 @@ struct RunLogEntryView: View {
                                             }
                                         }
                                         .buttonStyle(.plain)
-                                        .foregroundStyle(Color.accentColor)
+                                        .foregroundStyle(Theme.textPrimary)
 
                                         if showContextPrompt {
                                             Text(prompt)
@@ -694,7 +694,7 @@ struct RunLogEntryView: View {
                                             }
                                         }
                                         .buttonStyle(.plain)
-                                        .foregroundStyle(Color.accentColor)
+                                        .foregroundStyle(Theme.textPrimary)
 
                                         if showPostProcessingPrompt {
                                             Text(prompt)
@@ -816,9 +816,9 @@ struct PipelineStepView<Content: View>: View {
         HStack(alignment: .top, spacing: 10) {
             Text("\(number)")
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.primaryButtonText)
                 .frame(width: 20, height: 20)
-                .background(Circle().fill(Color.accentColor))
+                .background(Circle().fill(Theme.primaryButton))
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
@@ -867,7 +867,8 @@ struct AudioPlayerView: View {
                 Image(systemName: isPlaying ? "stop.fill" : "play.fill")
                     .font(.body)
                     .frame(width: 28, height: 28)
-                    .background(Circle().fill(Color.accentColor.opacity(0.15)))
+                    .foregroundStyle(Theme.textPrimary)
+                    .background(Circle().fill(Theme.secondaryButton))
             }
             .buttonStyle(.plain)
 
@@ -877,7 +878,7 @@ struct AudioPlayerView: View {
                         .fill(Color.secondary.opacity(0.15))
                         .frame(height: 4)
                     Capsule()
-                        .fill(Color.accentColor)
+                        .fill(Theme.textPrimary)
                         .frame(width: max(0, geo.size.width * progress), height: 4)
                 }
                 .frame(maxHeight: .infinity, alignment: .center)

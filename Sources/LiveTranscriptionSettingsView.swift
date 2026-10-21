@@ -21,12 +21,12 @@ struct LiveTranscriptionSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Picker("Provider", selection: $appState.liveTranscriptionProvider) {
-                ForEach(LiveTranscriptionProvider.allCases) { provider in
-                    Text(provider.displayName).tag(provider)
-                }
-            }
-            .pickerStyle(.segmented)
+            SukiSegmentedPicker(
+                "Provider",
+                selection: $appState.liveTranscriptionProvider,
+                options: Array(LiveTranscriptionProvider.allCases),
+                label: \.displayName
+            )
 
             credentialsSection
 

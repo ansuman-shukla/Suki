@@ -12,12 +12,12 @@ struct TranscriptionSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Picker("Provider", selection: $appState.transcriptionProvider) {
-                ForEach(TranscriptionProvider.allCases) { provider in
-                    Text(provider.displayName).tag(provider)
-                }
-            }
-            .pickerStyle(.segmented)
+            SukiSegmentedPicker(
+                "Provider",
+                selection: $appState.transcriptionProvider,
+                options: Array(TranscriptionProvider.allCases),
+                label: \.displayName
+            )
 
             if let credential = provider.credential {
                 ProviderAPIKeyField(provider: credential) { key in
