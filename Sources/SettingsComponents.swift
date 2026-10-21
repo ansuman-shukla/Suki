@@ -308,6 +308,33 @@ struct SettingsMenuButton<Content: View>: View {
     }
 }
 
+/// A "Change"-style menu button that shows the current choice.
+struct SettingsPickerMenu<Value: Hashable>: View {
+    let title: String
+    @Binding var selection: Value
+    let options: [Value]
+    let label: (Value) -> String
+
+    init(_ title: String, selection: Binding<Value>, options: [Value], label: @escaping (Value) -> String) {
+        self.title = title
+        self._selection = selection
+        self.options = options
+        self.label = label
+    }
+
+    var body: some View {
+        SettingsMenuButton(title: label(selection)) {
+            Picker(title, selection: $selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(label(option)).tag(option)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        }
+    }
+}
+
 struct SettingsSidebarSection<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content

@@ -7,7 +7,12 @@ struct LLMSettingsPane: View {
         SettingsPane(title: "LLM") {
             SettingsGroup("Provider") {
                 SettingsRow("Provider", detail: "Cleans up transcripts, runs Edit Mode, and reads screenshot context.") {
-                    LLMProviderMenu(selection: $appState.llmProvider)
+                    SettingsPickerMenu(
+                        "LLM Provider",
+                        selection: $appState.llmProvider,
+                        options: LLMProvider.allCases,
+                        label: \.displayName
+                    )
                 }
                 SettingsBlock { LLMCredentialFields() }
             }
@@ -28,22 +33,6 @@ struct LLMSettingsPane: View {
                 )
             }
             EditModeSettingsGroup()
-        }
-    }
-}
-
-struct LLMProviderMenu: View {
-    @Binding var selection: LLMProvider
-
-    var body: some View {
-        SettingsMenuButton(title: selection.displayName) {
-            Picker("LLM Provider", selection: $selection) {
-                ForEach(LLMProvider.allCases) { provider in
-                    Text(provider.displayName).tag(provider)
-                }
-            }
-            .pickerStyle(.inline)
-            .labelsHidden()
         }
     }
 }

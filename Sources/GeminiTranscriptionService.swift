@@ -88,6 +88,9 @@ enum SpeechToTextServiceFactory {
                 "Add your \(credential.displayName) API key in Settings > Transcription."
             )
         }
+        if configuration.provider == .custom, configuration.baseURL.isEmpty {
+            throw TranscriptionError.submissionFailed("Set a custom transcription endpoint in Settings > Transcription.")
+        }
         switch configuration.provider {
         case .gemini:
             return GeminiTranscriptionService(
@@ -95,7 +98,19 @@ enum SpeechToTextServiceFactory {
                 model: configuration.model,
                 language: configuration.language
             )
-        case .standard, .openAI:
+        case .xAI:
+            return XAITranscriptionService(
+                apiKey: configuration.apiKey,
+                model: configuration.model,
+                language: configuration.language
+            )
+        case .deepgram:
+            return DeepgramTranscriptionService(
+                apiKey: configuration.apiKey,
+                model: configuration.model,
+                language: configuration.language
+            )
+        case .groq, .openAI, .custom:
             return try TranscriptionService(
                 apiKey: configuration.apiKey,
                 baseURL: configuration.baseURL,

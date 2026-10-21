@@ -19,6 +19,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/AppContextService.swift \
 	Sources/AppName.swift \
 	Sources/ContextInferenceFailure.swift \
+	Sources/DeepgramTranscriptionService.swift \
 	Sources/DictationStats.swift \
 	Sources/GeminiLiveTranscriptionService.swift \
 	Sources/GeminiTranscriptionService.swift \
@@ -55,6 +56,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/TranscriptionService.swift \
 	Sources/UpdateManager.swift \
 	Sources/VocabularyList.swift \
+	Sources/XAITranscriptionService.swift \
 	Sources/WaveformLayout.swift \
 	Sources/ShortcutCore/DictationShortcutSessionController.swift \
 	Sources/ShortcutCore/ShortcutMatcher.swift \

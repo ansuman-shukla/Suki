@@ -12,21 +12,33 @@ struct TranscriptionSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            SukiSegmentedPicker(
-                "Provider",
-                selection: $appState.transcriptionProvider,
-                options: Array(TranscriptionProvider.allCases),
-                label: \.displayName
-            )
+            HStack {
+                Text("Provider")
+                    .font(.caption.weight(.semibold))
+                Spacer()
+                SettingsPickerMenu(
+                    "Transcription Provider",
+                    selection: $appState.transcriptionProvider,
+                    options: TranscriptionProvider.allCases,
+                    label: \.displayName
+                )
+            }
 
             if let credential = provider.credential {
                 ProviderAPIKeyField(provider: credential) { key in
                     await APIKeyValidator.validate(key, for: credential)
                 }
+                .id(credential)
             } else {
-                Text("Uses the API key and endpoint from API Key settings (Groq by default).")
+                Text("Any OpenAI-compatible /audio/transcriptions endpoint. Live transcription's Custom option uses it too.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                CustomEndpointFields(
+                    savedBaseURL: appState.transcriptionAPIURL,
+                    savedAPIKey: appState.transcriptionAPIKey
+                ) { baseURL, apiKey in
+                    appState.setCustomTranscriptionEndpoint(baseURL: baseURL, apiKey: apiKey)
+                }
             }
 
             ModelDropdownView(

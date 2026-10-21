@@ -243,7 +243,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     let maxPipelineHistoryCount = 20
     static let defaultContextScreenshotMaxDimension = Int(AppContextService.defaultScreenshotMaxDimension)
     static let contextScreenshotDimensionOptions = [1024, 768, 640, 512]
-    static let defaultTranscriptionModel = TranscriptionProvider.standardDefaultModel
+    static let defaultTranscriptionModel = TranscriptionProvider.groq.defaultModel
     static let transcriptionLanguageOptions: [(code: String, name: String)] = [
         ("", "Auto-detect"),
         ("en", "English"),
@@ -708,8 +708,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
             )
         }
         let transcriptionModel = UserDefaults.standard.string(forKey: transcriptionModelStorageKey) ?? Self.defaultTranscriptionModel
-        let transcriptionAPIURL = Self.loadOptionalStoredAPIValue(account: transcriptionAPIURLStorageKey)
-        let transcriptionAPIKey = Self.loadStoredAPIKey(account: transcriptionAPIKeyStorageKey)
+        var transcriptionAPIURL = Self.loadOptionalStoredAPIValue(account: transcriptionAPIURLStorageKey)
+        var transcriptionAPIKey = Self.loadStoredAPIKey(account: transcriptionAPIKeyStorageKey)
         let postProcessingModel = UserDefaults.standard.string(forKey: postProcessingModelStorageKey) ?? Self.defaultPostProcessingModel
         let postProcessingFallbackModel = Self.loadStoredPostProcessingFallbackModel(
             key: postProcessingFallbackModelStorageKey
@@ -782,6 +782,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         for provider in APIProvider.allCases {
             providerAPIKeys[provider] = Self.loadStoredAPIKey(account: provider.apiKeyStorageAccount)
         }
+        let legacyAPIKey = providerAPIKeys[.groq] ?? ""
         var customLLMBaseURL = Self.loadOptionalStoredAPIValue(account: customLLMBaseURLStorageKey)
         var customLLMAPIKey = Self.loadStoredAPIKey(account: customLLMAPIKeyStorageKey)
         let storedLLMProvider = UserDefaults.standard.string(forKey: llmProviderStorageKey).flatMap(LLMProvider.init(rawValue:))
@@ -808,9 +809,26 @@ final class AppState: ObservableObject, @unchecked Sendable {
             customBaseURL: customLLMBaseURL,
             customAPIKey: customLLMAPIKey
         )
-        let transcriptionProvider = TranscriptionProvider.initialSelection(
-            storedValue: UserDefaults.standard.string(forKey: transcriptionProviderStorageKey)
+        let storedTranscriptionProvider = UserDefaults.standard.string(forKey: transcriptionProviderStorageKey)
+        let migratedTranscription = TranscriptionProvider.migrateLegacySelection(
+            storedValue: storedTranscriptionProvider,
+            legacyBaseURL: legacyAPIBaseURL,
+            legacyAPIKey: legacyAPIKey,
+            transcriptionURL: transcriptionAPIURL,
+            transcriptionAPIKey: transcriptionAPIKey,
+            providerAPIKeys: providerAPIKeys
         )
+        let transcriptionProvider = migratedTranscription.provider
+        for provider in APIProvider.allCases where migratedTranscription.providerAPIKeys[provider] != providerAPIKeys[provider] {
+            Self.persistOptionalAPIValue(migratedTranscription.providerAPIKeys[provider] ?? "", account: provider.apiKeyStorageAccount)
+        }
+        providerAPIKeys = migratedTranscription.providerAPIKeys
+        if let endpoint = migratedTranscription.customEndpoint {
+            transcriptionAPIURL = endpoint.baseURL
+            transcriptionAPIKey = endpoint.apiKey
+            Self.persistOptionalAPIValue(endpoint.baseURL, account: transcriptionAPIURLStorageKey)
+            Self.persistOptionalAPIValue(endpoint.apiKey, account: transcriptionAPIKeyStorageKey)
+        }
         let liveTypingEnabled = UserDefaults.standard.bool(forKey: liveTypingEnabledStorageKey)
         let dictationAudioInterruptionEnabled = UserDefaults.standard.bool(
             forKey: dictationAudioInterruptionEnabledStorageKey
@@ -913,6 +931,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
 
         if storedLLMProvider != llmProvider {
             UserDefaults.standard.set(llmProvider.rawValue, forKey: llmProviderStorageKey)
+        }
+        if storedTranscriptionProvider != transcriptionProvider.rawValue {
+            UserDefaults.standard.set(transcriptionProvider.rawValue, forKey: transcriptionProviderStorageKey)
         }
         if storedLiveProvider != liveTranscriptionProvider.rawValue {
             // Pin the migrated default so later realtime toggles do not change it.
@@ -1189,22 +1210,15 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return normalized
     }
 
-    private var resolvedTranscriptionBaseURL: String {
-        let trimmed = transcriptionAPIURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? apiBaseURL : trimmed
-    }
-
-    private var resolvedTranscriptionAPIKey: String {
-        let trimmed = transcriptionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? apiKey : trimmed
+    var customTranscriptionEndpoint: CustomEndpoint {
+        CustomEndpoint(baseURL: transcriptionAPIURL, apiKey: transcriptionAPIKey)
     }
 
     var transcriptionConfiguration: TranscriptionConfiguration {
         TranscriptionConfiguration.resolve(
             provider: transcriptionProvider,
             providerAPIKey: transcriptionProvider.credential.flatMap { providerAPIKeys[$0] } ?? "",
-            standardBaseURL: resolvedTranscriptionBaseURL,
-            standardAPIKey: resolvedTranscriptionAPIKey,
+            customEndpoint: customTranscriptionEndpoint,
             model: transcriptionModel,
             language: resolvedTranscriptionLanguage
         )
@@ -1234,8 +1248,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
         LiveTranscriptionConfiguration.resolve(
             provider: provider,
             providerAPIKey: apiKey ?? provider.credential.flatMap { providerAPIKeys[$0] } ?? "",
-            transcriptionBaseURL: resolvedTranscriptionBaseURL,
-            transcriptionAPIKey: resolvedTranscriptionAPIKey,
+            transcriptionBaseURL: transcriptionAPIURL,
+            transcriptionAPIKey: transcriptionAPIKey,
             model: model ?? realtimeStreamingModel,
             language: resolvedTranscriptionLanguage
         )
