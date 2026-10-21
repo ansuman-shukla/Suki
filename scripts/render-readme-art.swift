@@ -110,45 +110,40 @@ func waveform(centerX: Double, centerY: Double, bars: Int, maxHeight: Double, co
 
 func hero(_ t: Theme) -> String {
     let typingDuration = "7s"
+    // Matches GitHub's own page color so the hero reads as no background at all,
+    // while staying legible if the viewer's GitHub and system themes disagree.
+    let page = t.name == "dark" ? "#0D1117" : "#FFFFFF"
     let body = """
     <defs>
-      <clipPath id="frame"><rect width="1600" height="700" rx="40"/></clipPath>
-      <radialGradient id="glowA" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="\(t.accent)" stop-opacity="0.22"/><stop offset="1" stop-color="\(t.accent)" stop-opacity="0"/></radialGradient>
-      <radialGradient id="glowB" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#FFA946" stop-opacity="0.2"/><stop offset="1" stop-color="#FFA946" stop-opacity="0"/></radialGradient>
-      <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity="\(t.name == "dark" ? 0.45 : 0.1)"/></filter>
-      <clipPath id="line1"><rect x="960" y="270" height="70" width="0"><animate attributeName="width" values="0;560;560" keyTimes="0;0.32;1" dur="\(typingDuration)" repeatCount="indefinite"/></rect></clipPath>
-      <clipPath id="line2"><rect x="960" y="340" height="70" width="0"><animate attributeName="width" values="0;0;560;560" keyTimes="0;0.34;0.62;1" dur="\(typingDuration)" repeatCount="indefinite"/></rect></clipPath>
+      <filter id="shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000" flood-opacity="\(t.name == "dark" ? 0.3 : 0.07)"/></filter>
+      <clipPath id="line1"><rect x="964" y="195" height="70" width="0"><animate attributeName="width" values="0;600;600" keyTimes="0;0.32;1" dur="\(typingDuration)" repeatCount="indefinite"/></rect></clipPath>
+      <clipPath id="line2"><rect x="964" y="262" height="70" width="0"><animate attributeName="width" values="0;0;600;600" keyTimes="0;0.34;0.62;1" dur="\(typingDuration)" repeatCount="indefinite"/></rect></clipPath>
     </defs>
-    <g clip-path="url(#frame)">
-      <rect width="1600" height="700" fill="\(t.surface)"/>
-      <circle cx="1350" cy="120" r="520" fill="url(#glowA)"/>
-      <circle cx="160" cy="700" r="480" fill="url(#glowB)"/>
-    </g>
-    <rect x="1" y="1" width="1598" height="698" rx="40" fill="none" stroke="\(t.border)" stroke-width="2"/>
+    <rect width="1600" height="500" fill="\(page)"/>
 
-    <image x="96" y="84" width="76" height="76" xlink:href="\(iconDataURI)" href="\(iconDataURI)"/>
-    <text x="190" y="137" class="serif" font-size="46" font-weight="600" fill="\(t.text)">Suki</text>
+    <image x="8" y="24" width="64" height="64" xlink:href="\(iconDataURI)" href="\(iconDataURI)"/>
+    <text x="88" y="70" class="serif" font-size="40" font-weight="600" fill="\(t.text)">Suki</text>
 
-    <text x="92" y="320" class="serif" font-size="132" font-weight="600" fill="\(t.text)">Talk.</text>
-    <text x="92" y="460" class="serif" font-size="132" font-weight="600" fill="\(t.text)">Suki <tspan font-style="italic" fill="\(t.accent)">types.</tspan></text>
-    <text x="98" y="550" class="sans" font-size="34" fill="\(t.text2)">Dictation for every app on your Mac.</text>
-    <text x="98" y="598" class="sans" font-size="34" fill="\(t.text2)">Free, private, and under 10MB.</text>
+    <text x="4" y="234" class="serif" font-size="108" font-weight="600" fill="\(t.text)">Talk.</text>
+    <text x="4" y="346" class="serif" font-size="108" font-weight="600" fill="\(t.text)">Suki <tspan font-style="italic" fill="\(t.accent)">types.</tspan></text>
+    <text x="10" y="420" class="sans" font-size="31" fill="\(t.text2)">Dictation for every app on your Mac.</text>
+    <text x="10" y="464" class="sans" font-size="31" fill="\(t.text2)">Free, private, and under 10MB.</text>
 
-    <g filter="url(#shadow)"><rect x="900" y="110" width="600" height="320" rx="28" fill="\(t.panel)" stroke="\(t.border)" stroke-width="2"/></g>
-    <circle cx="940" cy="150" r="8" fill="\(t.border)"/><circle cx="968" cy="150" r="8" fill="\(t.border)"/><circle cx="996" cy="150" r="8" fill="\(t.border)"/>
-    <text x="960" y="222" class="sans" font-size="26" fill="\(t.text3)">To: Sam</text>
-    <line x1="940" y1="248" x2="1460" y2="248" stroke="\(t.border)" stroke-width="2"/>
+    <g filter="url(#shadow)"><rect x="924" y="36" width="668" height="300" rx="26" fill="\(t.panel)" stroke="\(t.border)" stroke-width="2"/></g>
+    <circle cx="962" cy="74" r="8" fill="\(t.border)"/><circle cx="990" cy="74" r="8" fill="\(t.border)"/><circle cx="1018" cy="74" r="8" fill="\(t.border)"/>
+    <text x="964" y="140" class="sans" font-size="26" fill="\(t.text3)">To: Sam</text>
+    <line x1="954" y1="166" x2="1562" y2="166" stroke="\(t.border)" stroke-width="2"/>
     <g>
       <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.94;1" dur="\(typingDuration)" repeatCount="indefinite"/>
-      <text x="960" y="318" class="sans" font-size="33" fill="\(t.text)" clip-path="url(#line1)">Hey Sam, the deck is ready.</text>
-      <text x="960" y="388" class="sans" font-size="33" fill="\(t.text)" clip-path="url(#line2)">Want to go over it at 3?</text>
+      <text x="964" y="240" class="sans" font-size="33" fill="\(t.text)" clip-path="url(#line1)">Hey Sam, the deck is ready.</text>
+      <text x="964" y="304" class="sans" font-size="33" fill="\(t.text)" clip-path="url(#line2)">Want to go over it at 3?</text>
     </g>
 
-    \(keycap(t, x: 948, y: 488, size: 92))
-    <rect x="1068" y="492" width="340" height="88" rx="44" fill="#1A1A1A" stroke="\(t.name == "dark" ? "#464544" : "#1A1A1A")" stroke-width="2"/>
-    \(waveform(centerX: 1238, centerY: 536, bars: 12, maxHeight: 44, color: "#FCFCFB"))
+    \(keycap(t, x: 1000, y: 376, size: 80))
+    <rect x="1104" y="378" width="320" height="76" rx="38" fill="#1A1A1A" stroke="\(t.name == "dark" ? "#464544" : "#1A1A1A")" stroke-width="2"/>
+    \(waveform(centerX: 1264, centerY: 416, bars: 12, maxHeight: 40, color: "#FCFCFB"))
     """
-    return svg(width: 1600, height: 700, title: "Talk. Suki types. Dictation for every app on your Mac.", body)
+    return svg(width: 1600, height: 500, title: "Talk. Suki types. Dictation for every app on your Mac.", body)
 }
 
 struct Feature {
@@ -311,12 +306,12 @@ func demoTitle(_ t: Theme) -> String {
 
 func downloadButton() -> String {
     let body = """
-    <rect y="6" width="600" height="114" rx="57" fill="#C9761F"/>
-    <rect width="600" height="114" rx="57" fill="#FFA946"/>
-    <path d="M118 36v34m-14-14 14 14 14-14M102 82h32" fill="none" stroke="#1A1A1A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="160" y="72" class="sans" font-size="40" font-weight="600" fill="#1A1A1A">Download for Mac</text>
+    <rect y="4" width="440" height="88" rx="44" fill="#C9761F"/>
+    <rect width="440" height="88" rx="44" fill="#FFA946"/>
+    <path d="M86 27v26m-11-11 11 11 11-11M73 63h26" fill="none" stroke="#1A1A1A" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="118" y="56" class="sans" font-size="31" font-weight="600" fill="#1A1A1A">Download for Mac</text>
     """
-    return svg(width: 600, height: 120, title: "Download Suki for Mac", body)
+    return svg(width: 440, height: 92, title: "Download Suki for Mac", body)
 }
 
 try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
