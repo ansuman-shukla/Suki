@@ -74,6 +74,16 @@ private final class Harness {
         try? FileManager.default.removeItem(at: directory)
     }
 
+    /// Feeds both sides together in 100 ms batches, advancing the clock like live capture.
+    func play(them themAudio: [Float], me meAudio: [Float]) {
+        let batch = 1_600
+        for offset in stride(from: 0, to: max(themAudio.count, meAudio.count), by: batch) {
+            clock += 0.1
+            them.emit(Array(themAudio[min(offset, themAudio.count)..<min(offset + batch, themAudio.count)]))
+            me.emit(Array(meAudio[min(offset, meAudio.count)..<min(offset + batch, meAudio.count)]))
+        }
+    }
+
     /// Lets main-queue sample deliveries and transcription tasks run, up to two seconds.
     func settle(until done: (() -> Bool)? = nil) async {
         for _ in 0..<(done == nil ? 1 : 40) where done?() != true {
@@ -97,6 +107,53 @@ enum MeetingRecorderTests {
         await renameSavesTrimmedTitleAndKeepsTheRest()
         await renameIgnoresBlankAndUnchangedTitles()
         await renameFailureKeepsOldTitle()
+        await conversationKeepsSpeakingOrder()
+        await quickRepliesStayInterleaved()
+    }
+
+    @MainActor
+    private static func conversationKeepsSpeakingOrder() async {
+        let harness = Harness()
+        let recorder = harness.recorder
+        await recorder.start()
+        let tone = MeetingTranscriptCoreTests.tone, silence = MeetingTranscriptCoreTests.silence
+        // Them 0-1 s, me 3-5 s, them 6.5-9.5 s, me 11-15 s, then both quiet until 15.5 s.
+        harness.play(
+            them: tone(1, 0.2) + silence(5.5) + tone(3, 0.2) + silence(6),
+            me: silence(3) + tone(2, 0.2) + silence(6) + tone(4, 0.2) + silence(0.5)
+        )
+        await harness.settle()
+        await recorder.stop()
+        TestSupport.expectEqual(harness.transcriber.calls, 4)
+        TestSupport.expectEqual(harness.copied, ["Them: 1 seconds\nMe: 2 seconds\nThem: 3 seconds\nMe: 4 seconds"])
+        let segments = harness.store.loadAll().first?.segments ?? []
+        TestSupport.expectEqual(segments.map(\.speaker), [.them, .me, .them, .me])
+        for (actual, expected) in zip(segments.map(\.start), [0, 3, 6.5, 11]) {
+            TestSupport.expectApproximatelyEqual(actual, expected, accuracy: 0.001)
+        }
+        TestSupport.expectEqual(MeetingTranscriptCore.turns(segments).count, 4)
+    }
+
+    @MainActor
+    private static func quickRepliesStayInterleaved() async {
+        let harness = Harness()
+        let recorder = harness.recorder
+        await recorder.start()
+        let tone = MeetingTranscriptCoreTests.tone, silence = MeetingTranscriptCoreTests.silence
+        // Each side pauses only 1.6 s while the other answers, shorter than the long pause.
+        harness.play(
+            them: tone(1, 0.2) + silence(1.6) + tone(1, 0.2) + silence(3.9),
+            me: silence(1.3) + tone(1, 0.2) + silence(1.6) + tone(3, 0.2) + silence(0.6)
+        )
+        await harness.settle { harness.transcriber.calls == 3 }
+        TestSupport.expectEqual(recorder.liveSegments.map(\.speaker), [.them, .me, .them])
+        await recorder.stop()
+        TestSupport.expectEqual(harness.transcriber.calls, 4)
+        TestSupport.expectEqual(harness.copied, ["Them: 1 seconds\nMe: 1 seconds\nThem: 1 seconds\nMe: 3 seconds"])
+        let segments = harness.store.loadAll().first?.segments ?? []
+        for (actual, expected) in zip(segments.map(\.start), [0, 1.3, 2.6, 3.9]) {
+            TestSupport.expectApproximatelyEqual(actual, expected, accuracy: 0.001)
+        }
     }
 
     @MainActor
