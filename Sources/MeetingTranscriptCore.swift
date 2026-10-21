@@ -62,8 +62,8 @@ struct MeetingAudioChunk: Equatable {
 
 enum MeetingTranscriptCore {
     static let sampleRate: Double = 16_000
-    static let targetChunkSeconds: TimeInterval = 20
-    static let maxChunkSeconds: TimeInterval = 25
+    static let targetChunkSeconds: TimeInterval = 10
+    static let maxChunkSeconds: TimeInterval = 15
     static let failedChunkText = "[couldn't transcribe]"
     /// RMS below this (about -42 dBFS) counts as silence.
     static let silenceRMS: Float = 0.008

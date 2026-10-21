@@ -262,22 +262,22 @@ enum MeetingTranscriptCoreTests {
 
     private static func chunkBufferWaitsForTargetThenQuietMoment() {
         var buffer = MeetingChunkBuffer(speaker: .me)
-        TestSupport.expect(buffer.append(tone(seconds: 19.9), arrival: 19.9) == nil, "Below target keeps buffering")
-        TestSupport.expect(buffer.append(tone(seconds: 0.5), arrival: 20.4) == nil, "Past target but still talking keeps buffering")
-        let chunk = buffer.append(silence(seconds: 0.1), arrival: 20.5)
+        TestSupport.expect(buffer.append(tone(seconds: 9.9), arrival: 9.9) == nil, "Below target keeps buffering")
+        TestSupport.expect(buffer.append(tone(seconds: 0.5), arrival: 10.4) == nil, "Past target but still talking keeps buffering")
+        let chunk = buffer.append(silence(seconds: 0.1), arrival: 10.5)
         TestSupport.expectEqual(chunk?.speaker, .me)
-        TestSupport.expectEqual(chunk?.samples.count, Int(20.5 * Double(rate)))
+        TestSupport.expectEqual(chunk?.samples.count, Int(10.5 * Double(rate)))
         TestSupport.expectEqual(chunk?.start, 0)
         TestSupport.expectEqual(buffer.pendingSeconds, 0)
-        TestSupport.expect(buffer.append([], arrival: 21) == nil, "Empty input is ignored")
+        TestSupport.expect(buffer.append([], arrival: 11) == nil, "Empty input is ignored")
     }
 
     private static func chunkBufferCutsAtMaxEvenWhileTalking() {
         var buffer = MeetingChunkBuffer(speaker: .them)
-        TestSupport.expect(buffer.append(tone(seconds: 24.9), arrival: 24.9) == nil, "Talking under max keeps buffering")
-        let chunk = buffer.append(tone(seconds: 0.1), arrival: 25)
-        TestSupport.expectEqual(chunk?.samples.count, 25 * rate)
-        TestSupport.expectApproximatelyEqual(chunk?.duration ?? 0, 25)
+        TestSupport.expect(buffer.append(tone(seconds: 14.9), arrival: 14.9) == nil, "Talking under max keeps buffering")
+        let chunk = buffer.append(tone(seconds: 0.1), arrival: 15)
+        TestSupport.expectEqual(chunk?.samples.count, 15 * rate)
+        TestSupport.expectApproximatelyEqual(chunk?.duration ?? 0, 15)
         TestSupport.expectEqual(chunk?.speaker, .them)
     }
 

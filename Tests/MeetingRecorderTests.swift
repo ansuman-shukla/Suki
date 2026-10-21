@@ -152,12 +152,12 @@ enum MeetingRecorderTests {
 
         harness.clock += 1
         harness.them.emit(MeetingTranscriptCoreTests.tone(seconds: 1))
-        harness.clock += 20
-        harness.me.emit(MeetingTranscriptCoreTests.tone(seconds: 20) + MeetingTranscriptCoreTests.silence(seconds: 0.1))
+        harness.clock += 10
+        harness.me.emit(MeetingTranscriptCoreTests.tone(seconds: 10) + MeetingTranscriptCoreTests.silence(seconds: 0.1))
         await harness.settle { !recorder.liveSegments.isEmpty }
         TestSupport.expect(recorder.level > 0.5, "Waveform follows the louder side")
         TestSupport.expectEqual(harness.transcriber.calls, 1)
-        TestSupport.expectEqual(recorder.liveSegments.map(\.text), ["20 seconds"])
+        TestSupport.expectEqual(recorder.liveSegments.map(\.text), ["10 seconds"])
         TestSupport.expectEqual(recorder.liveSegments.first?.speaker, .me)
 
         harness.clock += 5
@@ -167,7 +167,7 @@ enum MeetingRecorderTests {
         TestSupport.expectEqual(harness.them.stopCount, 1)
         TestSupport.expectEqual(harness.transcriber.calls, 2)
         TestSupport.expect(recorder.liveSegments.isEmpty && recorder.level == 0, "Live state clears after stop")
-        TestSupport.expectEqual(harness.copied, ["Them: 1 seconds\nMe: 20 seconds"])
+        TestSupport.expectEqual(harness.copied, ["Them: 1 seconds\nMe: 10 seconds"])
         TestSupport.expectEqual(recorder.toast, "Copied to clipboard")
         TestSupport.expect(recorder.errorMessage == nil, "A good meeting has no error")
 
@@ -175,7 +175,7 @@ enum MeetingRecorderTests {
         TestSupport.expectEqual(saved.count, 1)
         TestSupport.expectEqual(recorder.meetings, saved)
         TestSupport.expectEqual(saved.first?.date, Date(timeIntervalSince1970: 1_700_000_000))
-        TestSupport.expectEqual(saved.first?.duration, 26)
+        TestSupport.expectEqual(saved.first?.duration, 16)
         TestSupport.expectEqual(saved.first?.segments.map(\.speaker), [.them, .me])
 
         harness.me.emit(MeetingTranscriptCoreTests.tone(seconds: 25))
