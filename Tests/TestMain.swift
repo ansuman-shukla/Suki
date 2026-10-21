@@ -20,6 +20,7 @@ struct SukiTests {
         SnippetListTests.run()
         ShortcutCoreTests.run()
         SemanticVersionTests.run()
+        UpdateSignatureVerifierTests.run()
         LLMCooldownManagerTests.run()
         PostProcessingServiceTests.run()
         TranscriptionErrorPresentationCoreTests.run()
