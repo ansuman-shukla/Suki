@@ -38,7 +38,10 @@ Suki is a macOS app built with Swift and the macOS SDK. To build and test locall
 ```bash
 make            # builds build/Suki Dev.app
 make run        # builds and opens the app
+make install    # builds, installs to /Applications, and opens it
 ```
+
+Use `make install INSTALL_DIR=~/Applications` to install without admin rights.
 
 The Makefile builds a `.app` bundle under `build/` using `swiftc` against the macOS SDK. It signs development builds with a local "Suki Dev" identity. That identity must exist in your keychain; the Makefile does not fall back automatically if it is missing.
 
