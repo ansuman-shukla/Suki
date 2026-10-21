@@ -1,7 +1,7 @@
 <a href="https://github.com/ansuman-shukla/Suki/releases/latest">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/hero-dark.svg">
-    <img src="docs/assets/readme/hero-light.svg" width="100%" alt="Talk. Suki types. Free, private dictation for every app on your Mac. Download for Mac, macOS 13 or later, Apple Silicon and Intel.">
+    <img src="docs/assets/readme/hero-light.svg" width="100%" alt="Suki: free, private dictation for every app on your Mac. Download for Mac, macOS 13 or later, Apple Silicon and Intel.">
   </picture>
 </a>
 
