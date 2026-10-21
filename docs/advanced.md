@@ -1,6 +1,6 @@
 # Suki for power users
 
-Everything you need to fine-tune Suki: providers and models, live transcription, shortcuts, Edit Mode, custom cleanup prompts, and local models. New to Suki? Start with the [README](../README.md).
+Everything you need to fine-tune Suki: providers and models, live transcription, shortcuts, Edit Mode, custom cleanup prompts, local models, privacy details, and FAQ. New to Suki? Start with the [README](../README.md).
 
 ## Providers and models
 
@@ -86,4 +86,43 @@ defaults delete com.ansumanshukla.suki post_processing_timeout_seconds
 defaults delete com.ansumanshukla.suki context_request_timeout_seconds
 ```
 
+</details>
+
+## Privacy
+
+- **No Suki server.** There's no account, no sign-up, and no tracking. Suki has no server to send your data to.
+- **Your voice goes only where you send it.** Audio and text go straight to the AI provider you choose. Use local models, and nothing leaves your Mac at all.
+- **Your stuff stays on your Mac.** Dictation history and meeting transcripts are saved locally, and your API keys are stored in the macOS Keychain.
+- **You control context.** If you allow Screen Recording, Suki sends a screenshot of the app you're dictating into to your AI provider, so it can spell names right. Skip that permission and Suki works without it.
+
+## FAQ
+
+<details>
+  <summary><b>How much does it cost?</b></summary>
+
+  Suki is free. You pay your AI provider for what you use, which is usually a few cents for a lot of dictation. Some providers, like Groq, have a free tier, and local models cost nothing.
+</details>
+
+<details>
+  <summary><b>Which provider should I pick?</b></summary>
+
+  Start with Groq: it's fast, cheap, and one key covers everything. If you want to see words appear while you talk, try OpenAI or Gemini for live typing. You can switch any time in Settings.
+</details>
+
+<details>
+  <summary><b>Why does macOS say it can't verify Suki?</b></summary>
+
+  Suki isn't notarized by Apple, so macOS asks you to confirm the first launch. Click **Open Anyway** in **System Settings > Privacy & Security**. Suki checks the signature of every update before it installs it.
+</details>
+
+<details>
+  <summary><b>Can I use it without the internet?</b></summary>
+
+  Yes, if you run both transcription and cleanup on local models. See [Using a Local Model](#using-a-local-model).
+</details>
+
+<details>
+  <summary><b>Does it work on Intel Macs?</b></summary>
+
+  Yes. Suki runs on Apple Silicon and Intel Macs with macOS 13 or later.
 </details>
