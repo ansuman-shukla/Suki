@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 
 enum MeetingSpeaker: String, Codable, CaseIterable {
     case me
@@ -7,6 +8,14 @@ enum MeetingSpeaker: String, Codable, CaseIterable {
     var label: String {
         switch self {
         case .me: return "Me"
+        case .them: return "Them"
+        }
+    }
+
+    /// Name shown above transcript bubbles. Copied text keeps `label`.
+    var displayName: String {
+        switch self {
+        case .me: return "You"
         case .them: return "Them"
         }
     }
@@ -22,6 +31,14 @@ struct MeetingSegment: Codable, Equatable, Identifiable {
     let speaker: MeetingSpeaker
     let start: TimeInterval
     var text: String
+}
+
+/// One speaker's uninterrupted stretch of a meeting, split into sentences for display.
+struct MeetingTurn: Equatable, Identifiable {
+    let id: UUID
+    let speaker: MeetingSpeaker
+    let start: TimeInterval
+    var sentences: [String]
 }
 
 struct MeetingRecord: Codable, Equatable, Identifiable {
@@ -45,8 +62,8 @@ struct MeetingAudioChunk: Equatable {
 
 enum MeetingTranscriptCore {
     static let sampleRate: Double = 16_000
-    static let targetChunkSeconds: TimeInterval = 20
-    static let maxChunkSeconds: TimeInterval = 25
+    static let targetChunkSeconds: TimeInterval = 10
+    static let maxChunkSeconds: TimeInterval = 15
     static let failedChunkText = "[couldn't transcribe]"
     /// RMS below this (about -42 dBFS) counts as silence.
     static let silenceRMS: Float = 0.008
@@ -72,12 +89,8 @@ enum MeetingTranscriptCore {
 
     /// Orders segments by start time and folds consecutive lines from the same speaker together.
     static func merged(_ segments: [MeetingSegment]) -> [MeetingSegment] {
-        let ordered = segments
-            .enumerated()
-            .sorted { ($0.element.start, $0.offset) < ($1.element.start, $1.offset) }
-            .map(\.element)
         var result: [MeetingSegment] = []
-        for segment in ordered {
+        for segment in ordered(segments) {
             let text = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { continue }
             if let last = result.last, last.speaker == segment.speaker {
@@ -87,6 +100,57 @@ enum MeetingTranscriptCore {
             }
         }
         return result
+    }
+
+    /// Like `merged`, but keeps each speaker's sentences apart so they can render as separate bubbles.
+    static func turns(_ segments: [MeetingSegment]) -> [MeetingTurn] {
+        var result: [MeetingTurn] = []
+        for segment in ordered(segments) {
+            let parts = sentences(in: segment.text)
+            guard !parts.isEmpty else { continue }
+            if let last = result.last, last.speaker == segment.speaker {
+                result[result.count - 1].sentences += parts
+            } else {
+                result.append(MeetingTurn(id: segment.id, speaker: segment.speaker, start: segment.start, sentences: parts))
+            }
+        }
+        return result
+    }
+
+    static func sentences(in text: String) -> [String] {
+        let tokenizer = NLTokenizer(unit: .sentence)
+        tokenizer.string = text
+        return tokenizer.tokens(for: text.startIndex..<text.endIndex)
+            .map { text[$0].trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// "2 speakers · 01:38"
+    static func transcriptSummary(_ segments: [MeetingSegment], duration: TimeInterval) -> String {
+        let speakers = Set(merged(segments).map(\.speaker)).count
+        return "\(speakers) speaker\(speakers == 1 ? "" : "s") · \(clock(duration))"
+    }
+
+    /// "4:28am"
+    static func timeLabel(for date: Date, locale: Locale = .current, timeZone: TimeZone = .current) -> String {
+        meridiemFormatter("h:mma", locale: locale, timeZone: timeZone).string(from: date)
+    }
+
+    private static func meridiemFormatter(_ format: String, locale: Locale, timeZone: TimeZone) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.amSymbol = "am"
+        formatter.pmSymbol = "pm"
+        formatter.dateFormat = format
+        return formatter
+    }
+
+    private static func ordered(_ segments: [MeetingSegment]) -> [MeetingSegment] {
+        segments
+            .enumerated()
+            .sorted { ($0.element.start, $0.offset) < ($1.element.start, $1.offset) }
+            .map(\.element)
     }
 
     static func clipboardText(_ segments: [MeetingSegment], timestamps: Bool = false) -> String {
@@ -106,13 +170,7 @@ enum MeetingTranscriptCore {
 
     /// "Meeting · Oct 21, 3:04pm"
     static func defaultTitle(for date: Date, locale: Locale = .current, timeZone: TimeZone = .current) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = timeZone
-        formatter.amSymbol = "am"
-        formatter.pmSymbol = "pm"
-        formatter.dateFormat = "MMM d, h:mma"
-        return "Meeting · " + formatter.string(from: date)
+        "Meeting · " + meridiemFormatter("MMM d, h:mma", locale: locale, timeZone: timeZone).string(from: date)
     }
 
     /// "Today", "Yesterday", or "Monday, Oct 20".
