@@ -3,10 +3,12 @@ import SwiftUI
 class AppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
     var setupWindow: NSWindow?
-    private var settingsWindow: NSWindow?
+    private var hubWindow: NSWindow?
+    private let hubRouter = HubRouter()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NetworkMonitor.shared.start()
+        SukiFont.registerBundled()
 
         NotificationCenter.default.addObserver(
             self,
@@ -18,6 +20,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self,
             selector: #selector(handleShowSettings),
             name: .showSettings,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleShowHub),
+            name: .showHub,
             object: nil
         )
 
@@ -40,7 +48,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         guard appState.hasCompletedSetup else { return true }
         if !flag {
-            showSettingsWindow()
+            showHubWindow()
         }
         return true
     }
@@ -82,45 +90,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func handleShowSettings() {
-        showSettingsWindow()
+        showHubWindow()
+        hubRouter.isSettingsPresented = true
     }
 
-    private func showSettingsWindow() {
+    @objc private func handleShowHub() {
+        showHubWindow()
+    }
+
+    private func showHubWindow() {
         NSApp.setActivationPolicy(.regular)
 
-        if let settingsWindow, settingsWindow.isVisible {
-            settingsWindow.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
+        if hubWindow == nil {
+            hubWindow = makeHubWindow()
         }
-
-        if settingsWindow == nil {
-            presentSettingsWindow()
-        } else {
-            settingsWindow?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        hubWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func presentSettingsWindow() {
-        let settingsView = SettingsView()
+    private func makeHubWindow() -> NSWindow {
+        let hubView = HubView()
             .environmentObject(appState)
-        let hostingView = NSHostingView(rootView: settingsView)
+            .environmentObject(hubRouter)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 780, height: 540),
-            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 1040, height: 680),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = AppName.displayName
-        window.contentView = hostingView
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+        window.contentView = NSHostingView(rootView: hubView)
+        window.minSize = NSSize(width: 900, height: 600)
         window.isReleasedWhenClosed = false
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-
-        settingsWindow = window
+        window.setFrameAutosaveName("SukiHubWindow")
+        if !window.setFrameUsingName("SukiHubWindow") {
+            window.center()
+        }
 
         NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
@@ -130,8 +139,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if self?.setupWindow == nil {
                 NSApp.setActivationPolicy(.accessory)
             }
-            self?.settingsWindow = nil
+            self?.hubRouter.isSettingsPresented = false
+            self?.hubWindow = nil
         }
+        return window
     }
 
 

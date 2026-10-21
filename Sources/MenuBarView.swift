@@ -343,6 +343,10 @@ struct MenuBarView: View {
                 }
             }
 
+            Button("Open \(AppName.displayName)") {
+                NotificationCenter.default.post(name: .showHub, object: nil)
+            }
+
             Button("Re-run Setup...") {
                 NotificationCenter.default.post(name: .showSetup, object: nil)
             }

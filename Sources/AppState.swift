@@ -611,6 +611,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     @Published var isDebugOverlayActive = false
     @Published var selectedSettingsTab: SettingsTab? = .general
     @Published var pipelineHistory: [PipelineHistoryItem] = []
+    @Published private(set) var dictationStats = DictationStatsLog.load(from: .standard)
     @Published var debugStatusMessage = "Idle"
     @Published var debugShowsUpdateReminderAfterDictation = false
     @Published var lastRawTranscript = ""
@@ -3141,6 +3142,20 @@ final class AppState: ObservableObject, @unchecked Sendable {
         } catch {
             errorMessage = "Unable to save run history entry: \(error.localizedDescription)"
         }
+        if newEntry.intent == .dictation {
+            recordDictationStats(transcript: postProcessedTranscript.isEmpty ? rawTranscript : postProcessedTranscript, audioFileName: audioFileName)
+        }
+    }
+
+    private func recordDictationStats(transcript: String, audioFileName: String?) {
+        let seconds = audioFileName.map { Self.audioDurationSeconds(of: Self.audioStorageDirectory().appendingPathComponent($0)) } ?? 0
+        dictationStats.record(words: DictationStatsLog.wordCount(transcript), seconds: seconds, at: Date())
+        dictationStats.save(to: .standard)
+    }
+
+    private static func audioDurationSeconds(of url: URL) -> Double {
+        guard let file = try? AVAudioFile(forReading: url), file.fileFormat.sampleRate > 0 else { return 0 }
+        return Double(file.length) / file.fileFormat.sampleRate
     }
 
     private func startRealtimeStreamingIfEnabled() {
