@@ -44,6 +44,8 @@ struct ProviderAPIKeyField: View {
         }
         .onAppear(perform: loadDraft)
         .onChange(of: provider) { _ in loadDraft() }
+        // The same key can be edited from another card on this page.
+        .onChange(of: appState.providerAPIKeys[provider]) { draft = $0 ?? "" }
     }
 
     private func loadDraft() {
@@ -121,6 +123,8 @@ struct CustomEndpointFields: View {
             baseURL = savedBaseURL
             apiKey = savedAPIKey
         }
+        .onChange(of: savedBaseURL) { baseURL = $0 }
+        .onChange(of: savedAPIKey) { apiKey = $0 }
     }
 
     private func saveAndTest() {
