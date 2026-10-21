@@ -10,6 +10,8 @@ enum TranscriptionProviderTests {
         testGeminiParseTranscript()
         testXAIRequest()
         testDeepgramRequest()
+        testSilentWAV()
+        await testModelTest()
     }
 
     private static func testMetadata() {
@@ -194,5 +196,57 @@ enum TranscriptionProviderTests {
         let silent = #"{"results":{"channels":[{"alternatives":[{"transcript":""}]}]}}"#
         TestSupport.expectEqual(try? DeepgramTranscriptionService.parseTranscript(Data(silent.utf8)), "")
         TestSupport.expect((try? DeepgramTranscriptionService.parseTranscript(Data(#"{"err_code":"x"}"#.utf8))) == nil, "Missing results is an error")
+    }
+
+    private static func testSilentWAV() {
+        let wav = TranscriptionModelTest.silentWAV(seconds: 0.5, sampleRate: 8_000)
+        TestSupport.expectEqual(wav.count, 44 + 8_000)
+        TestSupport.expectEqual(String(decoding: wav[0..<4], as: UTF8.self), "RIFF")
+        TestSupport.expectEqual(String(decoding: wav[8..<16], as: UTF8.self), "WAVEfmt ")
+        func uint32(at offset: Int) -> UInt32 { wav[offset..<offset + 4].reversed().reduce(0) { $0 << 8 | UInt32($1) } }
+        func uint16(at offset: Int) -> UInt16 { UInt16(wav[offset]) | UInt16(wav[offset + 1]) << 8 }
+        TestSupport.expectEqual(uint32(at: 4), UInt32(36 + 8_000))
+        TestSupport.expectEqual(uint16(at: 20), 1)
+        TestSupport.expectEqual(uint16(at: 22), 1)
+        TestSupport.expectEqual(uint32(at: 24), 8_000)
+        TestSupport.expectEqual(uint32(at: 28), 16_000)
+        TestSupport.expectEqual(uint16(at: 34), 16)
+        TestSupport.expectEqual(String(decoding: wav[36..<40], as: UTF8.self), "data")
+        TestSupport.expectEqual(uint32(at: 40), 8_000)
+        TestSupport.expect(wav[44...].allSatisfy { $0 == 0 }, "Silence is all zeros")
+    }
+
+    private final class RecordingService: SpeechToTextService {
+        var receivedURL: URL?
+        var sawWAV = false
+        let error: Error?
+        init(error: Error? = nil) { self.error = error }
+        func transcribe(fileURL: URL) async throws -> String {
+            receivedURL = fileURL
+            sawWAV = (try? Data(contentsOf: fileURL))?.prefix(4) == Data("RIFF".utf8)
+            if let error { throw error }
+            return ""
+        }
+    }
+
+    private static func testModelTest() async {
+        let service = RecordingService()
+        let passed = await TranscriptionModelTest.run(resolve(.deepgram)) { configuration in
+            TestSupport.expectEqual(configuration.provider, .deepgram)
+            return service
+        }
+        if case .failure = passed { TestSupport.expect(false, "An empty transcript passes") }
+        TestSupport.expect(service.sawWAV, "Uploads a WAV file")
+        TestSupport.expect(!FileManager.default.fileExists(atPath: service.receivedURL!.path), "Removes the temporary file")
+
+        let failing = RecordingService(error: TranscriptionError.submissionFailed("synthetic rejection"))
+        let failed = await TranscriptionModelTest.run(resolve(.xAI)) { _ in failing }
+        guard case .failure(let error) = failed else { return TestSupport.expect(false, "Service errors fail the test") }
+        TestSupport.expect(error.localizedDescription.contains("synthetic rejection"), "Shows the service error")
+        TestSupport.expect(!FileManager.default.fileExists(atPath: failing.receivedURL!.path), "Removes the file on failure")
+
+        let missingKey = await TranscriptionModelTest.run(resolve(.xAI, key: ""))
+        guard case .failure(let keyError) = missingKey else { return TestSupport.expect(false, "Missing key fails") }
+        TestSupport.expect(keyError.localizedDescription.contains("xAI API key"), "Factory errors surface")
     }
 }

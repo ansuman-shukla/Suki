@@ -55,6 +55,15 @@ struct TranscriptionSettingsView: View {
             )
             .id(provider)
 
+            AsyncTestButton(
+                title: "Test model",
+                successMessage: "\(appState.transcriptionConfiguration.model) works with \(provider.displayName)"
+            ) {
+                commitModel()
+                return await TranscriptionModelTest.run(appState.transcriptionConfiguration)
+            }
+            .id(provider)
+
             VStack(alignment: .leading, spacing: 6) {
                 Text("Transcription Language")
                     .font(.caption.weight(.semibold))

@@ -139,3 +139,47 @@ struct CustomEndpointFields: View {
         }
     }
 }
+
+/// Runs a live check and shows whether it passed.
+struct AsyncTestButton: View {
+    private enum TestState: Equatable {
+        case idle
+        case testing
+        case succeeded
+        case failed(String)
+    }
+
+    let title: String
+    let successMessage: String
+    let run: () async -> Result<Void, Error>
+
+    @State private var testState: TestState = .idle
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button(testState == .testing ? "Testing..." : title) {
+                testState = .testing
+                Task { @MainActor in
+                    switch await run() {
+                    case .success: testState = .succeeded
+                    case .failure(let error): testState = .failed(error.localizedDescription)
+                    }
+                }
+            }
+            .disabled(testState == .testing)
+            switch testState {
+            case .succeeded:
+                Label(successMessage, systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.caption)
+            case .failed(let message):
+                Label(message, systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                    .font(.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .idle, .testing:
+                EmptyView()
+            }
+        }
+    }
+}

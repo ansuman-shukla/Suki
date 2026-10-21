@@ -126,3 +126,46 @@ struct TranscriptionConfiguration: Equatable {
         )
     }
 }
+
+enum TranscriptionModelTest {
+    /// Transcribes a second of generated silence, so a model ID and key can
+    /// be checked without recording anything. An empty transcript passes.
+    static func run(
+        _ configuration: TranscriptionConfiguration,
+        makeService: (TranscriptionConfiguration) throws -> SpeechToTextService = SpeechToTextServiceFactory.make
+    ) async -> Result<Void, Error> {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("suki-model-test-\(UUID().uuidString).wav")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        do {
+            try silentWAV().write(to: fileURL)
+            _ = try await makeService(configuration).transcribe(fileURL: fileURL)
+            return .success(())
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    /// Mono 16-bit PCM WAV filled with zeros.
+    static func silentWAV(seconds: Double = 1, sampleRate: Int = 16_000) -> Data {
+        let dataSize = Int(Double(sampleRate) * seconds) * 2
+        var wav = Data()
+        func append<T: FixedWidthInteger>(_ value: T) {
+            withUnsafeBytes(of: value.littleEndian) { wav.append(contentsOf: $0) }
+        }
+        wav.append(Data("RIFF".utf8))
+        append(UInt32(36 + dataSize))
+        wav.append(Data("WAVEfmt ".utf8))
+        append(UInt32(16))
+        append(UInt16(1))
+        append(UInt16(1))
+        append(UInt32(sampleRate))
+        append(UInt32(sampleRate * 2))
+        append(UInt16(2))
+        append(UInt16(16))
+        wav.append(Data("data".utf8))
+        append(UInt32(dataSize))
+        wav.append(Data(count: dataSize))
+        return wav
+    }
+}
