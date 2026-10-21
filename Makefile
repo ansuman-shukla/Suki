@@ -21,6 +21,8 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/GeminiLiveTranscriptionService.swift \
 	Sources/GeminiTranscriptionService.swift \
 	Sources/GlobalShortcutBackend.swift \
+	Sources/HomeCopy.swift \
+	Sources/HomeHistoryGrouping.swift \
 	Sources/LLMAPITransport.swift \
 	Sources/LLMCooldownManager.swift \
 	Sources/LiveTranscriptionProvider.swift \
@@ -28,6 +30,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/LiveTypingCore.swift \
 	Sources/ModelConfiguration.swift \
 	Sources/ModifierKeyEventState.swift \
+	Sources/PipelineHistoryItem.swift \
 	Sources/PostProcessingService.swift \
 	Sources/RealtimeTranscriptionService.swift \
 	Sources/RecordingCaptureTiming.swift \
