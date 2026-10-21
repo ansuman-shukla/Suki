@@ -1,11 +1,13 @@
 import Foundation
 
 enum LLMProviderTests {
-    static func run() {
+    static func run() async {
         testPresets()
         testMigration()
         testResolve()
         testLegacyKeyMigration()
+        testModelTestRequest()
+        await testModelTestResults()
     }
 
     private static func testPresets() {
@@ -100,5 +102,51 @@ enum LLMProviderTests {
             customBaseURL: "https://router.example.invalid/api/v1",
             customAPIKey: "legacy"
         ))
+    }
+
+    private static let anthropic = LLMConfiguration(provider: .anthropic, baseURL: "https://api.anthropic.com/v1", apiKey: "k")
+
+    private static func testModelTestRequest() {
+        guard let request = LLMModelTest.request(model: " claude-haiku-5-5 ", configuration: anthropic) else {
+            return TestSupport.expect(false, "Configured provider builds a request")
+        }
+        TestSupport.expectEqual(request.url?.absoluteString, "https://api.anthropic.com/v1/chat/completions")
+        TestSupport.expectEqual(request.httpMethod, "POST")
+        TestSupport.expectEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer k")
+        let body = try! JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+        TestSupport.expectEqual(body["model"] as? String, "claude-haiku-5-5")
+        TestSupport.expect(body["temperature"] == nil, "Model test uses the same per-model options as cleanup")
+        TestSupport.expectEqual(body["max_completion_tokens"] as? Int, 32)
+        TestSupport.expect(
+            LLMModelTest.request(model: "m", configuration: LLMConfiguration(provider: .groq, baseURL: "https://x.invalid", apiKey: "")) == nil,
+            "No request without a key"
+        )
+        TestSupport.expect(LLMModelTest.request(model: " ", configuration: anthropic) == nil, "No request without a model")
+    }
+
+    private static func testModelTestResults() async {
+        func respond(_ status: Int, _ body: String) -> @Sendable (URLRequest) async throws -> (Data, URLResponse) {
+            { request in (Data(body.utf8), HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!) }
+        }
+        if case .failure = await LLMModelTest.run(model: "m", configuration: anthropic, transport: respond(200, "{}")) {
+            TestSupport.expect(false, "200 means the model works")
+        }
+        let missing = await LLMModelTest.run(
+            model: "m",
+            configuration: anthropic,
+            transport: respond(404, #"{"error":{"message":"model: m not found"}}"#)
+        )
+        guard case .failure(let error) = missing else { return TestSupport.expect(false, "404 fails") }
+        TestSupport.expectEqual(error.localizedDescription, "HTTP 404: model: m not found")
+        // Gemini wraps errors in an array.
+        TestSupport.expectEqual(
+            LLMModelTest.providerMessage(in: Data(#"[{"error":{"code":400,"message":"Invalid argument."}}]"#.utf8)),
+            "Invalid argument."
+        )
+        TestSupport.expectEqual(LLMModelTest.providerMessage(in: Data("not json".utf8)), nil)
+        TestSupport.expectEqual(LLMModelTest.providerMessage(in: Data(("{\"error\":{\"message\":\"" + String(repeating: "a", count: 300) + "\"}}").utf8))?.count, 161)
+        let offline = await LLMModelTest.run(model: "m", configuration: anthropic) { _ in throw URLError(.timedOut) }
+        guard case .failure(let offlineError as LLMModelTestError) = offline else { return TestSupport.expect(false, "Network errors fail") }
+        TestSupport.expectEqual(offlineError, .unreachable)
     }
 }

@@ -68,3 +68,74 @@ struct ProviderAPIKeyField: View {
         }
     }
 }
+
+/// Edits a custom OpenAI-compatible endpoint. Saved only after the
+/// endpoint lists its models with the given key.
+struct CustomEndpointFields: View {
+    private enum TestState: Equatable {
+        case idle
+        case testing
+        case succeeded
+        case failed(String)
+    }
+
+    let savedBaseURL: String
+    let savedAPIKey: String
+    let save: (_ baseURL: String, _ apiKey: String) -> Void
+
+    @State private var baseURL = ""
+    @State private var apiKey = ""
+    @State private var testState: TestState = .idle
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Base URL")
+                .font(.caption.weight(.semibold))
+            TextField("https://api.example.com/v1", text: $baseURL)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+            Text("API Key")
+                .font(.caption.weight(.semibold))
+            HStack(spacing: 8) {
+                SecureField("Optional for local servers", text: $apiKey)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                Button(testState == .testing ? "Testing..." : "Save & Test", action: saveAndTest)
+                    .disabled(baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || testState == .testing)
+            }
+            .disabled(testState == .testing)
+            switch testState {
+            case .succeeded:
+                Label("Endpoint saved", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.caption)
+            case .failed(let message):
+                Label(message, systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            case .idle, .testing:
+                EmptyView()
+            }
+        }
+        .onAppear {
+            baseURL = savedBaseURL
+            apiKey = savedAPIKey
+        }
+    }
+
+    private func saveAndTest() {
+        let url = LLMProvider.normalizedBaseURL(baseURL)
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        testState = .testing
+        Task { @MainActor in
+            switch await CustomEndpointValidator.validate(baseURL: url, apiKey: key) {
+            case .success:
+                save(url, key)
+                baseURL = url
+                testState = .succeeded
+            case .failure(let error):
+                testState = .failed(error.localizedDescription)
+            }
+        }
+    }
+}

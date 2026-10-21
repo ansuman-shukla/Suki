@@ -93,6 +93,51 @@ enum APIKeyValidator {
     }
 }
 
+enum CustomEndpointValidator {
+    /// Lists models on an OpenAI-compatible endpoint. The key is optional
+    /// because local servers often run without one.
+    static func validate(
+        baseURL: String,
+        apiKey: String,
+        transport: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
+            try await LLMAPITransport.data(for: request)
+        }
+    ) async -> Result<Void, Error> {
+        let base = LLMProvider.normalizedBaseURL(baseURL)
+        guard let url = URL(string: "\(base)/models"), let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme), url.host != nil else {
+            return .failure(CustomEndpointError.invalidURL)
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !key.isEmpty {
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        }
+        do {
+            let (_, response) = try await transport(request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            return status == 200 ? .success(()) : .failure(CustomEndpointError.rejected(status))
+        } catch {
+            return .failure(CustomEndpointError.unreachable)
+        }
+    }
+}
+
+enum CustomEndpointError: LocalizedError, Equatable {
+    case invalidURL
+    case rejected(Int)
+    case unreachable
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL: return "Enter a full URL, like https://api.example.com/v1."
+        case .rejected(let status): return "The endpoint answered HTTP \(status) when listing models. Check the URL and key."
+        case .unreachable: return "Couldn't reach this endpoint. Check the URL and your connection."
+        }
+    }
+}
+
 enum APIKeyValidationError: LocalizedError {
     case rejected(String)
     case unreachable(String)

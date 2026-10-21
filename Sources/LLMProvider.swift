@@ -167,3 +167,71 @@ struct LLMConfiguration: Equatable {
         )
     }
 }
+
+enum LLMModelTest {
+    /// Sends a one-line chat completion so a model ID can be checked before
+    /// dictation depends on it. The prompt is fixed and contains no user data.
+    static func run(
+        model: String,
+        configuration: LLMConfiguration,
+        transport: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
+            try await LLMAPITransport.data(for: request)
+        }
+    ) async -> Result<Void, Error> {
+        guard let request = request(model: model, configuration: configuration) else {
+            return .failure(LLMModelTestError.notConfigured)
+        }
+        do {
+            let (data, response) = try await transport(request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard status == 200 else {
+                return .failure(LLMModelTestError.rejected(status: status, message: providerMessage(in: data)))
+            }
+            return .success(())
+        } catch {
+            return .failure(LLMModelTestError.unreachable)
+        }
+    }
+
+    static func request(model: String, configuration: LLMConfiguration) -> URLRequest? {
+        let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedModel.isEmpty, !configuration.apiKey.isEmpty,
+              let url = URL(string: "\(configuration.baseURL)/chat/completions") else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var payload: [String: Any] = [
+            "messages": [["role": "user", "content": "Reply with the word OK."]],
+            "max_completion_tokens": 32,
+        ]
+        payload.merge(ModelConfiguration.nonContentRequestOptions(model: trimmedModel, temperature: 0)) { _, option in option }
+        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+        return request
+    }
+
+    /// The provider's own error text (for example "model not found"),
+    /// shortened because it is shown in Settings.
+    static func providerMessage(in data: Data) -> String? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) else { return nil }
+        let error = ((json as? [String: Any]) ?? (json as? [[String: Any]])?.first)?["error"]
+        let message = (error as? [String: Any])?["message"] as? String ?? error as? String
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty else { return nil }
+        return message.count > 160 ? String(message.prefix(160)) + "…" : message
+    }
+}
+
+enum LLMModelTestError: LocalizedError, Equatable {
+    case notConfigured
+    case rejected(status: Int, message: String?)
+    case unreachable
+
+    var errorDescription: String? {
+        switch self {
+        case .notConfigured: return "Save an API key and pick a model first."
+        case .rejected(let status, let message): return message.map { "HTTP \(status): \($0)" } ?? "HTTP \(status)"
+        case .unreachable: return "Couldn't reach the provider. Check the URL and your connection."
+        }
+    }
+}

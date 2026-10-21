@@ -5,6 +5,7 @@ enum APIProviderTests {
         testStorageAccounts()
         testValidationRequests()
         await testValidation()
+        await testCustomEndpointValidation()
     }
 
     private static func testStorageAccounts() {
@@ -70,5 +71,42 @@ enum APIProviderTests {
             return TestSupport.expect(false, "Network errors fail validation")
         }
         TestSupport.expect(offline.localizedDescription.contains("Couldn't reach xAI"), "Network errors say the provider was unreachable")
+    }
+
+    private static func testCustomEndpointValidation() async {
+        func respond(_ status: Int, expectAuth: String?) -> @Sendable (URLRequest) async throws -> (Data, URLResponse) {
+            { request in
+                TestSupport.expectEqual(request.url?.absoluteString, "https://llm.example.invalid/v1/models")
+                TestSupport.expectEqual(request.value(forHTTPHeaderField: "Authorization"), expectAuth)
+                return (Data(), HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!)
+            }
+        }
+        let ok = await CustomEndpointValidator.validate(
+            baseURL: " https://llm.example.invalid/v1/ ",
+            apiKey: " k ",
+            transport: respond(200, expectAuth: "Bearer k")
+        )
+        if case .failure = ok { TestSupport.expect(false, "200 passes") }
+        let keyless = await CustomEndpointValidator.validate(
+            baseURL: "https://llm.example.invalid/v1",
+            apiKey: "",
+            transport: respond(200, expectAuth: nil)
+        )
+        if case .failure = keyless { TestSupport.expect(false, "Local endpoints may run without a key") }
+        let rejected = await CustomEndpointValidator.validate(
+            baseURL: "https://llm.example.invalid/v1",
+            apiKey: "k",
+            transport: respond(401, expectAuth: "Bearer k")
+        )
+        guard case .failure(let error as CustomEndpointError) = rejected else { return TestSupport.expect(false, "401 fails") }
+        TestSupport.expectEqual(error, .rejected(401))
+        for bad in ["", "llm.example.invalid/v1", "ftp://llm.example.invalid"] {
+            let result = await CustomEndpointValidator.validate(baseURL: bad, apiKey: "k") { _ in
+                TestSupport.expect(false, "Invalid URLs are never requested")
+                throw URLError(.badURL)
+            }
+            guard case .failure(let error as CustomEndpointError) = result else { return TestSupport.expect(false, "\(bad) fails") }
+            TestSupport.expectEqual(error, .invalidURL)
+        }
     }
 }
