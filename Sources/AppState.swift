@@ -9,12 +9,6 @@ import Carbon
 import os.log
 private let recordingLog = OSLog(subsystem: "com.ansumanshukla.suki", category: "Recording")
 
-struct VoiceMacro: Codable, Identifiable, Equatable {
-    var id: UUID = UUID()
-    var command: String
-    var payload: String
-}
-
 struct PrecomputedMacro {
     let original: VoiceMacro
     let normalizedCommand: String
@@ -198,8 +192,10 @@ final class AppState: ObservableObject, @unchecked Sendable {
         case muted(previouslyMuted: Bool)
     }
 
-    private let apiKeyStorageKey = "groq_api_key"
-    private let apiBaseURLStorageKey = "api_base_url"
+    private let legacyAPIBaseURLStorageKey = "api_base_url"
+    private let llmProviderStorageKey = "llm_provider"
+    private let customLLMBaseURLStorageKey = "custom_llm_base_url"
+    private let customLLMAPIKeyStorageKey = "custom_llm_api_key"
     private let transcriptionModelStorageKey = "transcription_model"
     private let transcriptionAPIURLStorageKey = "transcription_api_url"
     private let transcriptionAPIKeyStorageKey = "transcription_api_key"
@@ -209,9 +205,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private let holdShortcutStorageKey = "hold_shortcut"
     private let toggleShortcutStorageKey = "toggle_shortcut"
     private let copyAgainShortcutStorageKey = "copy_again_shortcut"
+    private let meetingShortcutStorageKey = "meeting_shortcut"
     private let savedHoldCustomShortcutStorageKey = "saved_hold_custom_shortcut"
     private let savedToggleCustomShortcutStorageKey = "saved_toggle_custom_shortcut"
     private let savedCopyAgainCustomShortcutStorageKey = "saved_copy_again_custom_shortcut"
+    private let savedMeetingCustomShortcutStorageKey = "saved_meeting_custom_shortcut"
     private let customVocabularyStorageKey = "custom_vocabulary"
     private let transcriptionLanguageStorageKey = "transcription_language"
     private let selectedMicrophoneStorageKey = "selected_microphone_id"
@@ -245,7 +243,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     let maxPipelineHistoryCount = 20
     static let defaultContextScreenshotMaxDimension = Int(AppContextService.defaultScreenshotMaxDimension)
     static let contextScreenshotDimensionOptions = [1024, 768, 640, 512]
-    static let defaultTranscriptionModel = TranscriptionProvider.standardDefaultModel
+    static let defaultTranscriptionModel = TranscriptionProvider.groq.defaultModel
     static let transcriptionLanguageOptions: [(code: String, name: String)] = [
         ("", "Auto-detect"),
         ("en", "English"),
@@ -293,38 +291,50 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
     }
 
-    @Published var apiKey: String {
+    @Published var llmProvider: LLMProvider {
         didSet {
-            guard !isApplyingAPIConfiguration else { return }
-            persistAPIKey(apiKey)
+            UserDefaults.standard.set(llmProvider.rawValue, forKey: llmProviderStorageKey)
+            guard oldValue != llmProvider else { return }
+            // Model IDs are provider-specific, so start from the new provider's defaults.
+            if let defaults = llmProvider.defaultModels {
+                postProcessingModel = defaults.postProcessing
+                postProcessingFallbackModel = defaults.postProcessingFallback
+                contextModel = defaults.context
+            }
             rebuildContextService()
         }
     }
 
-    @Published var apiBaseURL: String {
-        didSet {
-            guard !isApplyingAPIConfiguration else { return }
-            persistAPIBaseURL(apiBaseURL)
-            rebuildContextService()
-        }
+    @Published private(set) var customLLMBaseURL: String
+    @Published private(set) var customLLMAPIKey: String
+
+    var llmConfiguration: LLMConfiguration {
+        LLMConfiguration.resolve(
+            provider: llmProvider,
+            providerAPIKey: llmProvider.credential.flatMap { providerAPIKeys[$0] } ?? "",
+            customBaseURL: customLLMBaseURL,
+            customAPIKey: customLLMAPIKey
+        )
     }
 
-    @Published var transcriptionAPIURL: String {
-        didSet {
-            guard !isApplyingAPIConfiguration else { return }
-            persistOptionalAPIValue(transcriptionAPIURL, account: transcriptionAPIURLStorageKey)
-        }
+    /// Key and endpoint for cleanup, Edit Mode, and context inference.
+    var apiKey: String { llmConfiguration.apiKey }
+    var apiBaseURL: String { llmConfiguration.baseURL }
+
+    /// Custom transcription endpoint, shared by upload and live transcription.
+    @Published private(set) var transcriptionAPIURL: String
+    @Published private(set) var transcriptionAPIKey: String
+
+    /// Keys are saved only after the provider accepts them, so a saved key
+    /// (or custom endpoint) means the provider is ready to use.
+    var isLLMConfigured: Bool {
+        llmProvider == .custom ? !customLLMBaseURL.isEmpty : !apiKey.isEmpty
     }
 
-    @Published var transcriptionAPIKey: String {
-        didSet {
-            guard !isApplyingAPIConfiguration else { return }
-            persistOptionalAPIValue(transcriptionAPIKey, account: transcriptionAPIKeyStorageKey)
-        }
+    var isTranscriptionConfigured: Bool {
+        guard let credential = transcriptionProvider.credential else { return !transcriptionAPIURL.isEmpty }
+        return !(providerAPIKeys[credential] ?? "").isEmpty
     }
-
-    // Publish only after the complete configuration transaction has persisted.
-    @Published private(set) var committedAPIConfiguration: ValidatedAPIConfiguration
 
     @Published var transcriptionModel: String {
         didSet {
@@ -372,6 +382,13 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
     }
 
+    @Published var meetingShortcut: ShortcutBinding {
+        didSet {
+            persistShortcut(meetingShortcut, key: meetingShortcutStorageKey)
+            restartHotkeyMonitoring()
+        }
+    }
+
     @Published private(set) var savedHoldCustomShortcut: ShortcutBinding? {
         didSet {
             persistOptionalShortcut(savedHoldCustomShortcut, key: savedHoldCustomShortcutStorageKey)
@@ -387,6 +404,12 @@ final class AppState: ObservableObject, @unchecked Sendable {
     @Published private(set) var savedCopyAgainCustomShortcut: ShortcutBinding? {
         didSet {
             persistOptionalShortcut(savedCopyAgainCustomShortcut, key: savedCopyAgainCustomShortcutStorageKey)
+        }
+    }
+
+    @Published private(set) var savedMeetingCustomShortcut: ShortcutBinding? {
+        didSet {
+            persistOptionalShortcut(savedMeetingCustomShortcut, key: savedMeetingCustomShortcutStorageKey)
         }
     }
 
@@ -519,8 +542,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// OpenAI and Gemini keys, shared by upload and live transcription.
-    @Published private(set) var providerAPIKeys: [CloudSpeechProvider: String]
+    /// One key per provider, shared by the LLM and transcription settings.
+    @Published private(set) var providerAPIKeys: [APIProvider: String]
 
     @Published var transcriptionProvider: TranscriptionProvider {
         didSet {
@@ -611,6 +634,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     @Published var isDebugOverlayActive = false
     @Published var selectedSettingsTab: SettingsTab? = .general
     @Published var pipelineHistory: [PipelineHistoryItem] = []
+    @Published private(set) var dictationStats = DictationStatsLog.load(from: .standard)
     @Published var debugStatusMessage = "Idle"
     @Published var debugShowsUpdateReminderAfterDictation = false
     @Published var lastRawTranscript = ""
@@ -673,20 +697,22 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private var pendingMicrophonePermissionTriggerMode: RecordingTriggerMode?
     private var pendingMicrophonePermissionSelectionSnapshot: AppSelectionSnapshot?
     private var pendingMicrophonePermissionManualCommandRequested: Bool?
-    private var isApplyingAPIConfiguration = false
     private let postTranscriptionUpdateReminderDuration: TimeInterval = 7
 
     init() {
         UserDefaults.standard.removeObject(forKey: "force_http2_transcription")
         let hasCompletedSetup = UserDefaults.standard.bool(forKey: "hasCompletedSetup")
-        let apiKey = Self.loadStoredAPIKey(account: apiKeyStorageKey)
-        let apiBaseURL = Self.loadStoredAPIBaseURL(account: "api_base_url")
+        let legacyAPIBaseURL = Self.loadOptionalStoredAPIValue(account: legacyAPIBaseURLStorageKey)
         for key in [contextModelStorageKey, postProcessingModelStorageKey, postProcessingFallbackModelStorageKey] {
-            ModelConfiguration.migrateGroqSelection(key: key, baseURL: apiBaseURL, defaults: .standard)
+            ModelConfiguration.migrateGroqSelection(
+                key: key,
+                baseURL: legacyAPIBaseURL.isEmpty ? Self.groqBaseURL : legacyAPIBaseURL,
+                defaults: .standard
+            )
         }
         let transcriptionModel = UserDefaults.standard.string(forKey: transcriptionModelStorageKey) ?? Self.defaultTranscriptionModel
-        let transcriptionAPIURL = Self.loadOptionalStoredAPIValue(account: transcriptionAPIURLStorageKey)
-        let transcriptionAPIKey = Self.loadStoredAPIKey(account: transcriptionAPIKeyStorageKey)
+        var transcriptionAPIURL = Self.loadOptionalStoredAPIValue(account: transcriptionAPIURLStorageKey)
+        var transcriptionAPIKey = Self.loadStoredAPIKey(account: transcriptionAPIKeyStorageKey)
         let postProcessingModel = UserDefaults.standard.string(forKey: postProcessingModelStorageKey) ?? Self.defaultPostProcessingModel
         let postProcessingFallbackModel = Self.loadStoredPostProcessingFallbackModel(
             key: postProcessingFallbackModelStorageKey
@@ -695,7 +721,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let shortcuts = Self.loadShortcutConfiguration(
             holdKey: holdShortcutStorageKey,
             toggleKey: toggleShortcutStorageKey,
-            copyAgainKey: copyAgainShortcutStorageKey
+            copyAgainKey: copyAgainShortcutStorageKey,
+            meetingKey: meetingShortcutStorageKey
         )
         let savedHoldCustomShortcut = Self.loadSavedCustomShortcut(
             forKey: savedHoldCustomShortcutStorageKey,
@@ -708,6 +735,10 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let savedCopyAgainCustomShortcut = Self.loadSavedCustomShortcut(
             forKey: savedCopyAgainCustomShortcutStorageKey,
             fallback: shortcuts.copyAgain.isCustom ? shortcuts.copyAgain : nil
+        )
+        let savedMeetingCustomShortcut = Self.loadSavedCustomShortcut(
+            forKey: savedMeetingCustomShortcutStorageKey,
+            fallback: shortcuts.meeting.isCustom ? shortcuts.meeting : nil
         )
         let customVocabulary = UserDefaults.standard.string(forKey: customVocabularyStorageKey) ?? ""
         let transcriptionLanguage = Self.normalizeTranscriptionLanguage(
@@ -750,13 +781,57 @@ final class AppState: ObservableObject, @unchecked Sendable {
             storedValue: storedLiveProvider,
             realtimeStreamingWasEnabled: realtimeStreamingEnabled
         )
-        var providerAPIKeys: [CloudSpeechProvider: String] = [:]
-        for provider in CloudSpeechProvider.allCases {
+        var providerAPIKeys: [APIProvider: String] = [:]
+        for provider in APIProvider.allCases {
             providerAPIKeys[provider] = Self.loadStoredAPIKey(account: provider.apiKeyStorageAccount)
         }
-        let transcriptionProvider = TranscriptionProvider.initialSelection(
-            storedValue: UserDefaults.standard.string(forKey: transcriptionProviderStorageKey)
+        let legacyAPIKey = providerAPIKeys[.groq] ?? ""
+        var customLLMBaseURL = Self.loadOptionalStoredAPIValue(account: customLLMBaseURLStorageKey)
+        var customLLMAPIKey = Self.loadStoredAPIKey(account: customLLMAPIKeyStorageKey)
+        let storedLLMProvider = UserDefaults.standard.string(forKey: llmProviderStorageKey).flatMap(LLMProvider.init(rawValue:))
+        let llmProvider: LLMProvider
+        if let storedLLMProvider {
+            llmProvider = storedLLMProvider
+        } else {
+            let migrated = LLMProvider.migrateLegacySettings(legacyBaseURL: legacyAPIBaseURL, providerAPIKeys: providerAPIKeys)
+            llmProvider = migrated.provider
+            for provider in APIProvider.allCases where migrated.providerAPIKeys[provider] != providerAPIKeys[provider] {
+                Self.persistOptionalAPIValue(migrated.providerAPIKeys[provider] ?? "", account: provider.apiKeyStorageAccount)
+            }
+            providerAPIKeys = migrated.providerAPIKeys
+            if let baseURL = migrated.customBaseURL, let key = migrated.customAPIKey {
+                customLLMBaseURL = baseURL
+                customLLMAPIKey = key
+                Self.persistOptionalAPIValue(baseURL, account: customLLMBaseURLStorageKey)
+                Self.persistOptionalAPIValue(key, account: customLLMAPIKeyStorageKey)
+            }
+        }
+        let initialLLMConfiguration = LLMConfiguration.resolve(
+            provider: llmProvider,
+            providerAPIKey: llmProvider.credential.flatMap { providerAPIKeys[$0] } ?? "",
+            customBaseURL: customLLMBaseURL,
+            customAPIKey: customLLMAPIKey
         )
+        let storedTranscriptionProvider = UserDefaults.standard.string(forKey: transcriptionProviderStorageKey)
+        let migratedTranscription = TranscriptionProvider.migrateLegacySelection(
+            storedValue: storedTranscriptionProvider,
+            legacyBaseURL: legacyAPIBaseURL,
+            legacyAPIKey: legacyAPIKey,
+            transcriptionURL: transcriptionAPIURL,
+            transcriptionAPIKey: transcriptionAPIKey,
+            providerAPIKeys: providerAPIKeys
+        )
+        let transcriptionProvider = migratedTranscription.provider
+        for provider in APIProvider.allCases where migratedTranscription.providerAPIKeys[provider] != providerAPIKeys[provider] {
+            Self.persistOptionalAPIValue(migratedTranscription.providerAPIKeys[provider] ?? "", account: provider.apiKeyStorageAccount)
+        }
+        providerAPIKeys = migratedTranscription.providerAPIKeys
+        if let endpoint = migratedTranscription.customEndpoint {
+            transcriptionAPIURL = endpoint.baseURL
+            transcriptionAPIKey = endpoint.apiKey
+            Self.persistOptionalAPIValue(endpoint.baseURL, account: transcriptionAPIURLStorageKey)
+            Self.persistOptionalAPIValue(endpoint.apiKey, account: transcriptionAPIKeyStorageKey)
+        }
         let liveTypingEnabled = UserDefaults.standard.bool(forKey: liveTypingEnabledStorageKey)
         let dictationAudioInterruptionEnabled = UserDefaults.standard.bool(
             forKey: dictationAudioInterruptionEnabledStorageKey
@@ -794,24 +869,19 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let selectedMicrophoneID = UserDefaults.standard.string(forKey: selectedMicrophoneStorageKey) ?? "default"
 
         self.contextService = Self.makeAppContextService(
-            apiKey: apiKey,
-            baseURL: apiBaseURL,
+            apiKey: initialLLMConfiguration.apiKey,
+            baseURL: initialLLMConfiguration.baseURL,
             customContextPrompt: customContextPrompt,
             contextModel: contextModel,
             contextScreenshotMaxDimension: contextScreenshotMaxDimension,
             desktopScreenshotFallbackEnabled: desktopScreenshotFallbackEnabled
         )
         self.hasCompletedSetup = hasCompletedSetup
-        self.apiKey = apiKey
-        self.apiBaseURL = apiBaseURL
+        self.llmProvider = llmProvider
+        self.customLLMBaseURL = customLLMBaseURL
+        self.customLLMAPIKey = customLLMAPIKey
         self.transcriptionAPIURL = transcriptionAPIURL
         self.transcriptionAPIKey = transcriptionAPIKey
-        self.committedAPIConfiguration = ValidatedAPIConfiguration(
-            apiKey: apiKey,
-            baseURL: apiBaseURL,
-            transcriptionAPIURL: transcriptionAPIURL,
-            transcriptionAPIKey: transcriptionAPIKey
-        )
         self.transcriptionModel = transcriptionModel
         self.postProcessingModel = postProcessingModel
         self.postProcessingFallbackModel = postProcessingFallbackModel
@@ -819,9 +889,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
         self.holdShortcut = shortcuts.hold
         self.toggleShortcut = shortcuts.toggle
         self.copyAgainShortcut = shortcuts.copyAgain
+        self.meetingShortcut = shortcuts.meeting
         self.savedHoldCustomShortcut = savedHoldCustomShortcut.binding
         self.savedToggleCustomShortcut = savedToggleCustomShortcut.binding
         self.savedCopyAgainCustomShortcut = savedCopyAgainCustomShortcut.binding
+        self.savedMeetingCustomShortcut = savedMeetingCustomShortcut.binding
         self.isCommandModeEnabled = isCommandModeEnabled
         self.commandModeStyle = commandModeStyle
         self.commandModeManualModifier = commandModeManualModifier
@@ -860,6 +932,12 @@ final class AppState: ObservableObject, @unchecked Sendable {
         refreshAvailableMicrophones()
         installAudioDeviceObservers()
 
+        if storedLLMProvider != llmProvider {
+            UserDefaults.standard.set(llmProvider.rawValue, forKey: llmProviderStorageKey)
+        }
+        if storedTranscriptionProvider != transcriptionProvider.rawValue {
+            UserDefaults.standard.set(transcriptionProvider.rawValue, forKey: transcriptionProviderStorageKey)
+        }
         if storedLiveProvider != liveTranscriptionProvider.rawValue {
             // Pin the migrated default so later realtime toggles do not change it.
             UserDefaults.standard.set(liveTranscriptionProvider.rawValue, forKey: liveTranscriptionProviderStorageKey)
@@ -873,6 +951,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if shortcuts.didUpdateCopyAgainStoredValue {
             persistShortcut(shortcuts.copyAgain, key: copyAgainShortcutStorageKey)
         }
+        if shortcuts.didUpdateMeetingStoredValue {
+            persistShortcut(shortcuts.meeting, key: meetingShortcutStorageKey)
+        }
         if savedHoldCustomShortcut.didUpdateStoredValue {
             persistOptionalShortcut(savedHoldCustomShortcut.binding, key: savedHoldCustomShortcutStorageKey)
         }
@@ -881,6 +962,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
         if savedCopyAgainCustomShortcut.didUpdateStoredValue {
             persistOptionalShortcut(savedCopyAgainCustomShortcut.binding, key: savedCopyAgainCustomShortcutStorageKey)
+        }
+        if savedMeetingCustomShortcut.didUpdateStoredValue {
+            persistOptionalShortcut(savedMeetingCustomShortcut.binding, key: savedMeetingCustomShortcutStorageKey)
         }
 
         overlayManager.onStopButtonPressed = { [weak self] in
@@ -918,24 +1002,17 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return ""
     }
 
-    private func persistAPIKey(_ value: String) {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            AppSettingsStorage.delete(account: apiKeyStorageKey)
-        } else {
-            AppSettingsStorage.save(trimmed, account: apiKeyStorageKey)
-        }
-    }
-
-    static let defaultAPIBaseURL = APIConfigurationSaveFlow.defaultBaseURL
+    private static let groqBaseURL = APIProvider.groq.openAICompatibleBaseURL!
 
     private struct StoredShortcutConfiguration {
         let hold: ShortcutBinding
         let toggle: ShortcutBinding
         let copyAgain: ShortcutBinding
+        let meeting: ShortcutBinding
         let didUpdateHoldStoredValue: Bool
         let didUpdateToggleStoredValue: Bool
         let didUpdateCopyAgainStoredValue: Bool
+        let didUpdateMeetingStoredValue: Bool
     }
 
     private struct StoredOptionalShortcut {
@@ -947,13 +1024,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let binding: ShortcutBinding?
         let hadStoredValue: Bool
         let didNormalize: Bool
-    }
-
-    private static func loadStoredAPIBaseURL(account: String) -> String {
-        if let stored = AppSettingsStorage.load(account: account), !stored.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return stored
-        }
-        return defaultAPIBaseURL
     }
 
     private static func loadStoredContextModel(key: String) -> String {
@@ -987,7 +1057,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private static func loadShortcutConfiguration(
         holdKey: String,
         toggleKey: String,
-        copyAgainKey: String
+        copyAgainKey: String,
+        meetingKey: String
     ) -> StoredShortcutConfiguration {
         let legacyPreset = ShortcutPreset(
             rawValue: UserDefaults.standard.string(forKey: "hotkey_option") ?? ShortcutPreset.fnKey.rawValue
@@ -997,13 +1068,16 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let storedHold = loadShortcut(forKey: holdKey)
         let storedToggle = loadShortcut(forKey: toggleKey)
         let storedCopyAgain = loadShortcut(forKey: copyAgainKey)
+        let storedMeeting = loadShortcut(forKey: meetingKey)
         return StoredShortcutConfiguration(
             hold: storedHold.binding ?? hold,
             toggle: storedToggle.binding ?? toggle,
             copyAgain: storedCopyAgain.binding ?? .disabled,
+            meeting: storedMeeting.binding ?? .disabled,
             didUpdateHoldStoredValue: storedHold.binding == nil || storedHold.didNormalize,
             didUpdateToggleStoredValue: storedToggle.binding == nil || storedToggle.didNormalize,
-            didUpdateCopyAgainStoredValue: storedCopyAgain.didNormalize
+            didUpdateCopyAgainStoredValue: storedCopyAgain.didNormalize,
+            didUpdateMeetingStoredValue: storedMeeting.didNormalize
         )
     }
 
@@ -1072,45 +1146,26 @@ final class AppState: ObservableObject, @unchecked Sendable {
         )
     }
 
-    func updateAPIConfiguration(
-        apiKey: String,
-        baseURL: String,
-        transcriptionAPIURL: String,
-        transcriptionAPIKey: String
-    ) {
-        isApplyingAPIConfiguration = true
-        self.apiKey = apiKey
-        self.apiBaseURL = baseURL
-        self.transcriptionAPIURL = transcriptionAPIURL
-        self.transcriptionAPIKey = transcriptionAPIKey
-        isApplyingAPIConfiguration = false
-        persistAPIKey(apiKey)
-        persistAPIBaseURL(baseURL)
-        persistOptionalAPIValue(transcriptionAPIURL, account: transcriptionAPIURLStorageKey)
-        persistOptionalAPIValue(transcriptionAPIKey, account: transcriptionAPIKeyStorageKey)
-        rebuildContextService()
-        committedAPIConfiguration = ValidatedAPIConfiguration(
-            apiKey: apiKey,
-            baseURL: baseURL,
-            transcriptionAPIURL: transcriptionAPIURL,
-            transcriptionAPIKey: transcriptionAPIKey
-        )
+    func setCustomLLMEndpoint(baseURL: String, apiKey: String) {
+        customLLMBaseURL = LLMProvider.normalizedBaseURL(baseURL)
+        customLLMAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        Self.persistOptionalAPIValue(customLLMBaseURL, account: customLLMBaseURLStorageKey)
+        Self.persistOptionalAPIValue(customLLMAPIKey, account: customLLMAPIKeyStorageKey)
+        if llmProvider == .custom { rebuildContextService() }
+    }
+
+    func setCustomTranscriptionEndpoint(baseURL: String, apiKey: String) {
+        transcriptionAPIURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        transcriptionAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        Self.persistOptionalAPIValue(transcriptionAPIURL, account: transcriptionAPIURLStorageKey)
+        Self.persistOptionalAPIValue(transcriptionAPIKey, account: transcriptionAPIKeyStorageKey)
     }
 
     private func rebuildContextService() {
         contextService = makeAppContextService()
     }
 
-    private func persistAPIBaseURL(_ value: String) {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty || trimmed == Self.defaultAPIBaseURL {
-            AppSettingsStorage.delete(account: apiBaseURLStorageKey)
-        } else {
-            AppSettingsStorage.save(trimmed, account: apiBaseURLStorageKey)
-        }
-    }
-
-    private func persistOptionalAPIValue(_ value: String, account: String) {
+    private static func persistOptionalAPIValue(_ value: String, account: String) {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             AppSettingsStorage.delete(account: account)
@@ -1141,25 +1196,22 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return normalized
     }
 
-    private var resolvedTranscriptionBaseURL: String {
-        let trimmed = transcriptionAPIURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? apiBaseURL : trimmed
+    var customTranscriptionEndpoint: CustomEndpoint {
+        CustomEndpoint(baseURL: transcriptionAPIURL, apiKey: transcriptionAPIKey)
     }
 
-    private var resolvedTranscriptionAPIKey: String {
-        let trimmed = transcriptionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? apiKey : trimmed
+    var transcriptionConfiguration: TranscriptionConfiguration {
+        TranscriptionConfiguration.resolve(
+            provider: transcriptionProvider,
+            providerAPIKey: transcriptionProvider.credential.flatMap { providerAPIKeys[$0] } ?? "",
+            customEndpoint: customTranscriptionEndpoint,
+            model: transcriptionModel,
+            language: resolvedTranscriptionLanguage
+        )
     }
 
     func makeTranscriptionService() throws -> SpeechToTextService {
-        try SpeechToTextServiceFactory.make(TranscriptionConfiguration.resolve(
-            provider: transcriptionProvider,
-            providerAPIKey: transcriptionProvider.credential.flatMap { providerAPIKeys[$0] } ?? "",
-            standardBaseURL: resolvedTranscriptionBaseURL,
-            standardAPIKey: resolvedTranscriptionAPIKey,
-            model: transcriptionModel,
-            language: resolvedTranscriptionLanguage
-        ))
+        try SpeechToTextServiceFactory.make(transcriptionConfiguration)
     }
 
     private var resolvedTranscriptionLanguage: String? {
@@ -1167,10 +1219,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return normalized.isEmpty ? nil : normalized
     }
 
-    func setProviderAPIKey(_ key: String, for provider: CloudSpeechProvider) {
+    func setProviderAPIKey(_ key: String, for provider: APIProvider) {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        persistOptionalAPIValue(trimmed, account: provider.apiKeyStorageAccount)
+        Self.persistOptionalAPIValue(trimmed, account: provider.apiKeyStorageAccount)
         providerAPIKeys[provider] = trimmed
+        if provider == llmProvider.credential { rebuildContextService() }
     }
 
     func liveTranscriptionConfiguration(
@@ -1181,8 +1234,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
         LiveTranscriptionConfiguration.resolve(
             provider: provider,
             providerAPIKey: apiKey ?? provider.credential.flatMap { providerAPIKeys[$0] } ?? "",
-            transcriptionBaseURL: resolvedTranscriptionBaseURL,
-            transcriptionAPIKey: resolvedTranscriptionAPIKey,
+            transcriptionBaseURL: transcriptionAPIURL,
+            transcriptionAPIKey: transcriptionAPIKey,
             model: model ?? realtimeStreamingModel,
             language: resolvedTranscriptionLanguage
         )
@@ -1619,7 +1672,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     }
 
     var usesFnShortcut: Bool {
-        holdShortcut.usesFnKey || toggleShortcut.usesFnKey || copyAgainShortcut.usesFnKey
+        holdShortcut.usesFnKey || toggleShortcut.usesFnKey || copyAgainShortcut.usesFnKey || meetingShortcut.usesFnKey
     }
 
     var hasEnabledHoldShortcut: Bool {
@@ -1659,6 +1712,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
             return savedToggleCustomShortcut
         case .copyAgain:
             return savedCopyAgainCustomShortcut
+        case .meeting:
+            return savedMeetingCustomShortcut
         }
     }
 
@@ -1722,6 +1777,22 @@ final class AppState: ObservableObject, @unchecked Sendable {
             }
         }
 
+        if role != .meeting, binding.conflicts(with: meetingShortcut) {
+            return "This shortcut is already used by Record Meeting."
+        }
+        if role == .meeting {
+            if binding.conflicts(with: holdShortcut) {
+                return "Record Meeting cannot share a shortcut with Hold to Talk."
+            }
+            if binding.conflicts(with: toggleShortcut) {
+                return "Record Meeting cannot share a shortcut with Tap to Toggle."
+            }
+            if isCommandModeEnabled, commandModeStyle == .manual,
+               bindingCollides(binding, with: commandModeManualModifier) {
+                return "Record Meeting cannot share the Edit Mode modifier."
+            }
+        }
+
         switch role {
         case .hold:
             if binding.isCustom {
@@ -1738,6 +1809,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
                 savedCopyAgainCustomShortcut = binding
             }
             copyAgainShortcut = binding
+        case .meeting:
+            if binding.isCustom {
+                savedMeetingCustomShortcut = binding
+            }
+            meetingShortcut = binding
         }
 
         return nil
@@ -1763,6 +1839,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if !copyAgainBinding.isDisabled && copyAgainBinding.modifiers.contains(manualModifier) {
             return "That modifier is already part of the Paste Again shortcut."
         }
+        if !meetingShortcut.isDisabled && meetingShortcut.modifiers.contains(manualModifier) {
+            return "That modifier is already part of the Record Meeting shortcut."
+        }
         // Modifier-only bindings carry identity in keyCode, not modifiers.
         if !holdBinding.isDisabled,
            holdBinding.kind == .modifierKey,
@@ -1781,6 +1860,12 @@ final class AppState: ObservableObject, @unchecked Sendable {
            let bindingModifier = ShortcutBinding.modifier(forKeyCode: copyAgainBinding.keyCode),
            bindingModifier == manualModifier {
             return "That modifier is already the Paste Again shortcut."
+        }
+        if !meetingShortcut.isDisabled,
+           meetingShortcut.kind == .modifierKey,
+           let bindingModifier = ShortcutBinding.modifier(forKeyCode: meetingShortcut.keyCode),
+           bindingModifier == manualModifier {
+            return "That modifier is already the Record Meeting shortcut."
         }
 
         return nil
@@ -1841,6 +1926,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             hold: holdShortcut,
             toggle: toggleShortcut,
             copyAgain: copyAgainShortcut,
+            meeting: meetingShortcut,
             permittedAdditionalExactMatchModifiers: permittedAdditionalExactMatchModifiers
         )
     }
@@ -1863,6 +1949,10 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private func handleShortcutEvent(_ event: ShortcutEvent) {
         if event == .copyAgainTriggered {
             copyLastTranscriptToPasteboard()
+            return
+        }
+        if event == .meetingToggleTriggered {
+            NotificationCenter.default.post(name: .toggleMeetingRecording, object: nil)
             return
         }
 
@@ -2089,7 +2179,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if triggerMode == .toggle {
             cancelPendingShortcutStart()
         }
-        playAlertSound(named: "Basso")
+        playAlertSound(.error)
         scheduleReadyStatusReset(after: 2, matching: ["Select text to transform first"])
     }
 
@@ -2105,7 +2195,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if triggerMode == .toggle {
             cancelPendingShortcutStart()
         }
-        playAlertSound(named: "Basso")
+        playAlertSound(.error)
         scheduleReadyStatusReset(after: 2, matching: ["Fix Edit Mode modifier"])
     }
 
@@ -2186,7 +2276,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             activeRecordingTriggerMode = nil
             currentSessionIntent = .dictation
             shortcutSessionController.reset()
-            playAlertSound(named: "Basso")
+            playAlertSound(.error)
             showScreenshotPermissionAlert(message: message)
             return false
         }
@@ -2377,7 +2467,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
                 )
             }
             overlayShown = true
-            self.playAlertSound(named: "Tink")
+            self.playAlertSound(.start)
         }
         audioRecorder.onRecordingFailure = { [weak self] error in
             DispatchQueue.main.async {
@@ -2507,15 +2597,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
         precomputedMacros = voiceMacros.map { macro in
             PrecomputedMacro(
                 original: macro,
-                normalizedCommand: normalize(macro.command)
+                normalizedCommand: SnippetList.normalizedTrigger(macro.command)
             )
         }
-    }
-
-    private func normalize(_ text: String) -> String {
-        let lowercased = text.lowercased()
-        let strippedPunctuation = lowercased.components(separatedBy: CharacterSet.punctuationCharacters).joined()
-        return strippedPunctuation.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func parseTranscriptCommands(
@@ -2559,16 +2643,16 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return "\(status); detected press enter command"
     }
 
-    func playAlertSound(named name: String) {
+    func playAlertSound(_ sound: SukiSound) {
         guard alertSoundsEnabled else { return }
 
-        let sound = NSSound(named: name)
+        let sound = sound.makeSound()
         sound?.volume = soundVolume
         sound?.play()
     }
 
     private func findMatchingMacro(for transcript: String) -> VoiceMacro? {
-        let normalizedTranscript = normalize(transcript)
+        let normalizedTranscript = SnippetList.normalizedTrigger(transcript)
         guard !normalizedTranscript.isEmpty else { return nil }
 
         return precomputedMacros.first {
@@ -2765,7 +2849,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         isTranscribing = true
         statusText = "Preparing audio..."
         errorMessage = nil
-        playAlertSound(named: "Pop")
+        playAlertSound(.stop)
         overlayManager.showTranscribing()
         audioRecorder.stopRecording { [weak self] fileURL in
             guard let self else { return }
@@ -3141,6 +3225,20 @@ final class AppState: ObservableObject, @unchecked Sendable {
         } catch {
             errorMessage = "Unable to save run history entry: \(error.localizedDescription)"
         }
+        if newEntry.intent == .dictation {
+            recordDictationStats(transcript: postProcessedTranscript.isEmpty ? rawTranscript : postProcessedTranscript, audioFileName: audioFileName)
+        }
+    }
+
+    private func recordDictationStats(transcript: String, audioFileName: String?) {
+        let seconds = audioFileName.map { Self.audioDurationSeconds(of: Self.audioStorageDirectory().appendingPathComponent($0)) } ?? 0
+        dictationStats.record(words: DictationStatsLog.wordCount(transcript), seconds: seconds, at: Date())
+        dictationStats.save(to: .standard)
+    }
+
+    private static func audioDurationSeconds(of url: URL) -> Double {
+        guard let file = try? AVAudioFile(forReading: url), file.fileFormat.sampleRate > 0 else { return 0 }
+        return Double(file.length) / file.fileFormat.sampleRate
     }
 
     private func startRealtimeStreamingIfEnabled() {
@@ -3328,7 +3426,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             statusText = "Screenshot Required"
             overlayManager.dismiss()
 
-            playAlertSound(named: "Basso")
+            playAlertSound(.error)
             showScreenshotPermissionAlert(message: message)
         }
         // Non-permission errors (transient failures) — continue recording without context

@@ -24,6 +24,8 @@
     <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>Suki needs microphone access to transcribe your speech.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>Suki records meeting audio from other apps only when you start a meeting recording.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Suki needs speech recognition to convert your voice to text.</string>
     <key>NSAccessibilityUsageDescription</key>

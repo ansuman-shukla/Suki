@@ -98,11 +98,11 @@ enum GeminiLiveTranscriptionServiceTests {
     }
 
     private static func testJoin() {
-        TestSupport.expectEqual(GeminiLiveTranscriptState.join("", "  First"), "First")
-        TestSupport.expectEqual(GeminiLiveTranscriptState.join("One.", "Two"), "One. Two")
-        TestSupport.expectEqual(GeminiLiveTranscriptState.join("One.", " Two"), "One. Two")
-        TestSupport.expectEqual(GeminiLiveTranscriptState.join("One. ", "Two"), "One. Two")
-        TestSupport.expectEqual(GeminiLiveTranscriptState.join("One.", "  \n"), "One.")
+        TestSupport.expectEqual(LiveTranscriptText.join("", "  First"), "First")
+        TestSupport.expectEqual(LiveTranscriptText.join("One.", "Two"), "One. Two")
+        TestSupport.expectEqual(LiveTranscriptText.join("One.", " Two"), "One. Two")
+        TestSupport.expectEqual(LiveTranscriptText.join("One. ", "Two"), "One. Two")
+        TestSupport.expectEqual(LiveTranscriptText.join("One.", "  \n"), "One.")
     }
 
     private static func testClientMessages() {

@@ -55,7 +55,7 @@ struct ModelDropdownView: View {
                 .labelsHidden()
                 
                 if effectiveSelection.wrappedValue == "Custom..." {
-                    TextField(defaultModel, text: $textDraft)
+                    TextField(defaultModel.isEmpty ? "model-id" : defaultModel, text: $textDraft)
                         .textFieldStyle(.roundedBorder)
                         .focused($isEditingCustom)
                         .onSubmit {
@@ -68,11 +68,13 @@ struct ModelDropdownView: View {
                         }
                 }
                 
-                Button("Reset to Default") {
-                    isCustom = false
-                    onReset()
+                if !defaultModel.isEmpty {
+                    Button("Reset to Default") {
+                        isCustom = false
+                        onReset()
+                    }
+                    .font(.caption)
                 }
-                .font(.caption)
             }
             
             if let subtitle = subtitle {

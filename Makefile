@@ -13,25 +13,42 @@ APP_EXECUTABLE_TARGET := $(subst $(space),\ ,$(APP_EXECUTABLE))
 SOURCES = $(shell find Sources -name '*.swift' -type f | LC_ALL=C sort)
 TEST_RUNNER = $(BUILD_DIR)/SukiTests
 TEST_PRODUCTION_SOURCES = \
-	Sources/APIConfigurationDraft.swift \
+	Sources/APIProvider.swift \
+	Sources/AppAppearance.swift \
 	Sources/AppContextService.swift \
 	Sources/AppName.swift \
 	Sources/ContextInferenceFailure.swift \
+	Sources/DeepgramTranscriptionService.swift \
+	Sources/DictationStats.swift \
 	Sources/GeminiLiveTranscriptionService.swift \
 	Sources/GeminiTranscriptionService.swift \
 	Sources/GlobalShortcutBackend.swift \
+	Sources/HomeCopy.swift \
+	Sources/HomeHistoryGrouping.swift \
 	Sources/LLMAPITransport.swift \
 	Sources/LLMCooldownManager.swift \
+	Sources/LLMProvider.swift \
 	Sources/LiveTranscriptionProvider.swift \
+	Sources/MeetingDetectionCore.swift \
 	Sources/LiveTranscriptionSession.swift \
 	Sources/LiveTypingCore.swift \
+	Sources/MeetingAudioCapture.swift \
+	Sources/MeetingMicWatchdog.swift \
+	Sources/MeetingRecorder.swift \
+	Sources/MeetingStore.swift \
+	Sources/MeetingTranscriptCore.swift \
+	Sources/MeetingTranscriptionPipeline.swift \
 	Sources/ModelConfiguration.swift \
 	Sources/ModifierKeyEventState.swift \
+	Sources/PipelineHistoryItem.swift \
 	Sources/PostProcessingService.swift \
 	Sources/RealtimeTranscriptionService.swift \
 	Sources/RecordingCaptureTiming.swift \
 	Sources/RecordingTimerPreference.swift \
 	Sources/ShortcutBinding.swift \
+	Sources/SnippetList.swift \
+	Sources/StreamingSTTSession.swift \
+	Sources/SukiSound.swift \
 	Sources/SyntheticKeystrokeTyper.swift \
 	Sources/TranscriptionErrorPresentationCore.swift \
 	Sources/TranscriptTextCore.swift \
@@ -39,6 +56,10 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/TranscriptionProvider.swift \
 	Sources/TranscriptionService.swift \
 	Sources/UpdateManager.swift \
+	Sources/UpdateSignatureVerifier.swift \
+	Sources/VocabularyList.swift \
+	Sources/XAITranscriptionService.swift \
+	Sources/WaveformLayout.swift \
 	Sources/ShortcutCore/DictationShortcutSessionController.swift \
 	Sources/ShortcutCore/ShortcutMatcher.swift \
 	Sources/ShortcutCore/ShortcutModels.swift
@@ -46,10 +67,11 @@ TEST_SOURCES = $(shell find Tests -name '*.swift' -type f | LC_ALL=C sort)
 SHELL_SCRIPTS = $(shell find .github/scripts .agents/skills -name '*.sh' -type f | LC_ALL=C sort)
 YAML_FILES = $(shell find .github -type f \( -name '*.yml' -o -name '*.yaml' \) | LC_ALL=C sort)
 RESOURCES = $(CONTENTS)/Resources
+SOUND_FILES = $(shell find Resources/Sounds -type f -name '*.caf' | LC_ALL=C sort)
 ARCH ?= $(shell uname -m)
 
 # Pick the icon source based on which bundle we are building. Dev builds get
-# a DEV badge on the icon so a developer's dock shows at a glance
+# a hammer badge on the icon so a developer's dock shows at a glance
 # which Suki they are running when both are installed side by side.
 ifeq ($(APP_NAME),Suki Dev)
 ICON_SOURCE = Resources/AppIcon-Dev-Source.png
@@ -59,11 +81,14 @@ ICON_SOURCE = Resources/AppIcon-Source.png
 ICON_ICNS = Resources/AppIcon.icns
 endif
 
-.PHONY: all check clean run icon dmg codesign-dmg notarize test typecheck validate
+INSTALL_DIR ?= /Applications
+INSTALLED_APP = $(INSTALL_DIR)/$(APP_NAME).app
+
+.PHONY: all check clean run install icon dmg codesign-dmg notarize test typecheck validate
 
 all: $(APP_EXECUTABLE_TARGET)
 
-$(APP_EXECUTABLE_TARGET): $(SOURCES) Info.plist $(ICON_ICNS)
+$(APP_EXECUTABLE_TARGET): $(SOURCES) Info.plist $(ICON_ICNS) $(SOUND_FILES)
 	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES)"
 ifeq ($(ARCH),universal)
 	swiftc \
@@ -96,6 +121,8 @@ endif
 	@plutil -replace CFBundleExecutable -string "$(APP_NAME)" "$(CONTENTS)/Info.plist"
 	@plutil -replace CFBundleIdentifier -string "$(BUNDLE_ID)" "$(CONTENTS)/Info.plist"
 	@cp $(ICON_ICNS) "$(RESOURCES)/AppIcon.icns"
+	@mkdir -p "$(RESOURCES)/Sounds"
+	@cp $(SOUND_FILES) "$(RESOURCES)/Sounds/"
 	@plutil -replace NSMicrophoneUsageDescription -string "$(APP_NAME) needs microphone access to transcribe your speech." "$(CONTENTS)/Info.plist"
 	@plutil -replace NSSpeechRecognitionUsageDescription -string "$(APP_NAME) needs speech recognition to convert your voice to text." "$(CONTENTS)/Info.plist"
 	@plutil -replace NSAccessibilityUsageDescription -string "$(APP_NAME) needs accessibility access to detect the text cursor position and paste transcribed text." "$(CONTENTS)/Info.plist"
@@ -186,3 +213,14 @@ clean:
 
 run: all
 	open "$(APP_BUNDLE)"
+
+# Copy the signed bundle into Applications so it appears in Launchpad and
+# Spotlight. Permission grants carry over because they follow the signing
+# identity, not the bundle path.
+install: all
+	@osascript -e 'tell application id "$(BUNDLE_ID)" to quit' >/dev/null 2>&1 || true
+	@while pgrep -xq "$(APP_NAME)"; do sleep 0.2; done
+	@rm -rf "$(INSTALLED_APP)"
+	@ditto "$(APP_BUNDLE)" "$(INSTALLED_APP)"
+	@open "$(INSTALLED_APP)"
+	@echo "Installed $(INSTALLED_APP)"
