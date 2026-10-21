@@ -54,6 +54,7 @@ enum MeetingTranscriptCoreTests {
         chunkBufferFlushKeepsTailAndTrimsSilence()
         chunkBufferEndsLineWhenOtherSideSpeaks()
         chunkBufferReportsLastSpeechButNotBlips()
+        chunkBufferClockSkipsAheadAfterDroppedAudio()
     }
 
     private static func rmsMatchesDefinition() {
@@ -432,5 +433,25 @@ enum MeetingTranscriptCoreTests {
         TestSupport.expectApproximatelyEqual(buffer.lastSpeechTime ?? -1, 1.8)
         _ = buffer.append(tone(seconds: 0.2) + silence(seconds: 3), arrival: 8)
         TestSupport.expectApproximatelyEqual(buffer.lastSpeechTime ?? -1, 1.8)
+    }
+
+    private static func chunkBufferClockSkipsAheadAfterDroppedAudio() {
+        var stalled = MeetingChunkBuffer(speaker: .me)
+        TestSupport.expectEqual(stalled.append(tone(seconds: 1) + silence(seconds: 2), arrival: 3).map(\.start), [0])
+        // The source delivers nothing from 3 s to 8 s, then resumes.
+        _ = stalled.append(silence(seconds: 0.5), arrival: 8.5)
+        _ = stalled.append(tone(seconds: 1), arrival: 9.5)
+        TestSupport.expectApproximatelyEqual(stalled.flush()?.start ?? -1, 8.5, accuracy: 0.0001)
+
+        var late = MeetingChunkBuffer(speaker: .them)
+        _ = late.append(silence(seconds: 1), arrival: 1)
+        _ = late.append(silence(seconds: 0.1), arrival: 1.6)
+        _ = late.append(tone(seconds: 1), arrival: 2.6)
+        TestSupport.expectApproximatelyEqual(late.flush()?.start ?? -1, 1.1, accuracy: 0.0001)
+
+        var early = MeetingChunkBuffer(speaker: .them)
+        _ = early.append(silence(seconds: 5), arrival: 1)
+        _ = early.append(tone(seconds: 1), arrival: 1.1)
+        TestSupport.expectApproximatelyEqual(early.flush()?.start ?? -1, 5, accuracy: 0.0001)
     }
 }

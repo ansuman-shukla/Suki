@@ -78,6 +78,8 @@ enum MeetingTranscriptCore {
     static let turnPauseSeconds: TimeInterval = 0.6
     /// A pause this long ends an utterance even when nobody else spoke.
     static let longPauseSeconds: TimeInterval = 2
+    /// Samples arriving this much later than their count predicts mean the source dropped audio.
+    static let clockResyncSeconds: TimeInterval = 1
 
     static func windows(_ seconds: TimeInterval) -> Int {
         Int((seconds / levelWindowSeconds).rounded())
@@ -308,8 +310,16 @@ struct MeetingChunkBuffer {
         otherSpeechTime: TimeInterval? = nil
     ) -> [MeetingAudioChunk] {
         guard !samples.isEmpty else { return [] }
-        if streamOffset == nil {
-            streamOffset = max(0, arrival - Double(samples.count) / MeetingTranscriptCore.sampleRate)
+        let batchStart = arrival - Double(samples.count) / MeetingTranscriptCore.sampleRate
+        if let streamOffset {
+            // A stalled source delivers nothing, so counting samples alone would fall behind the
+            // other speaker's clock. Small delivery jitter is ignored; the clock never runs back.
+            let counted = streamOffset + Double(judgedSamples + unjudged.count) / MeetingTranscriptCore.sampleRate
+            if batchStart - counted > MeetingTranscriptCore.clockResyncSeconds {
+                self.streamOffset = streamOffset + batchStart - counted
+            }
+        } else {
+            streamOffset = max(0, batchStart)
         }
         unjudged.append(contentsOf: samples)
         var chunks: [MeetingAudioChunk] = []
