@@ -273,7 +273,6 @@ Selected text: \(selectedText ?? "None")
 
             var payload: [String: Any] = [
                 "model": model,
-                "temperature": 0.2,
                 "messages": [
                     ["role": "system", "content": contextSystemPrompt],
                     ["role": "user", "content": userMessage]
@@ -299,6 +298,7 @@ Selected text: \(selectedText ?? "None")
         // can reserve more output tokens than Groq's free-tier TPM limit.
         var options: [String: Any] = ["max_completion_tokens": 512]
         let config = ModelConfiguration.config(for: model)
+        if !config.omitsTemperature { options["temperature"] = 0.2 }
         if let effort = config.reasoningEffort { options["reasoning_effort"] = effort }
         if let include = config.includeReasoning { options["include_reasoning"] = include }
         return options

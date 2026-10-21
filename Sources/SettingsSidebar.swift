@@ -3,6 +3,7 @@ import SwiftUI
 enum SettingsPage: String, Identifiable {
     case general
     case system
+    case llm
     case transcription
     case prompts
     case runLog
@@ -14,6 +15,7 @@ enum SettingsPage: String, Identifiable {
         switch self {
         case .general: return "General"
         case .system: return "System"
+        case .llm: return "LLM"
         case .transcription: return "Transcription"
         case .prompts: return "Prompts"
         case .runLog: return "Run Log"
@@ -25,6 +27,7 @@ enum SettingsPage: String, Identifiable {
         switch self {
         case .general: return "gearshape"
         case .system: return "macwindow"
+        case .llm: return "sparkles"
         case .transcription: return "waveform"
         case .prompts: return "text.bubble"
         case .runLog: return "clock.arrow.circlepath"

@@ -95,8 +95,7 @@ enum MeetingTranscriptionPipelineTests {
             TranscriptionConfiguration.resolve(
                 provider: provider,
                 providerAPIKey: key,
-                standardBaseURL: "https://example.invalid/v1",
-                standardAPIKey: key,
+                customEndpoint: CustomEndpoint(baseURL: "https://example.invalid/v1", apiKey: key),
                 model: "",
                 language: nil
             )
@@ -113,7 +112,8 @@ enum MeetingTranscriptionPipelineTests {
             }
         }
         TestSupport.expect(TranscriptionProvider.allCases.allSatisfy { MeetingTranscriber.hasAPIKey(configuration($0, key: "synthetic")) }, "Any key counts")
-        TestSupport.expect((try? MeetingTranscriber.make(configuration(.standard, key: "synthetic"))) is TranscriptionService, "Standard uses upload service")
+        TestSupport.expect((try? MeetingTranscriber.make(configuration(.groq, key: "synthetic"))) is TranscriptionService, "Groq uses upload service")
+        TestSupport.expect((try? MeetingTranscriber.make(configuration(.custom, key: "synthetic"))) is TranscriptionService, "Custom uses upload service")
         TestSupport.expect((try? MeetingTranscriber.make(configuration(.openAI, key: "synthetic"))) is TranscriptionService, "OpenAI uses upload service")
         TestSupport.expect((try? MeetingTranscriber.make(configuration(.gemini, key: "synthetic"))) is GeminiTranscriptionService, "Gemini uses its service")
     }

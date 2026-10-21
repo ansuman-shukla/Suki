@@ -13,11 +13,12 @@ APP_EXECUTABLE_TARGET := $(subst $(space),\ ,$(APP_EXECUTABLE))
 SOURCES = $(shell find Sources -name '*.swift' -type f | LC_ALL=C sort)
 TEST_RUNNER = $(BUILD_DIR)/SukiTests
 TEST_PRODUCTION_SOURCES = \
-	Sources/APIConfigurationDraft.swift \
+	Sources/APIProvider.swift \
 	Sources/AppAppearance.swift \
 	Sources/AppContextService.swift \
 	Sources/AppName.swift \
 	Sources/ContextInferenceFailure.swift \
+	Sources/DeepgramTranscriptionService.swift \
 	Sources/DictationStats.swift \
 	Sources/GeminiLiveTranscriptionService.swift \
 	Sources/GeminiTranscriptionService.swift \
@@ -26,6 +27,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/HomeHistoryGrouping.swift \
 	Sources/LLMAPITransport.swift \
 	Sources/LLMCooldownManager.swift \
+	Sources/LLMProvider.swift \
 	Sources/LiveTranscriptionProvider.swift \
 	Sources/MeetingDetectionCore.swift \
 	Sources/LiveTranscriptionSession.swift \
@@ -44,6 +46,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/RecordingTimerPreference.swift \
 	Sources/ShortcutBinding.swift \
 	Sources/SnippetList.swift \
+	Sources/StreamingSTTSession.swift \
 	Sources/SukiSound.swift \
 	Sources/SyntheticKeystrokeTyper.swift \
 	Sources/TranscriptionErrorPresentationCore.swift \
@@ -53,6 +56,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/TranscriptionService.swift \
 	Sources/UpdateManager.swift \
 	Sources/VocabularyList.swift \
+	Sources/XAITranscriptionService.swift \
 	Sources/WaveformLayout.swift \
 	Sources/ShortcutCore/DictationShortcutSessionController.swift \
 	Sources/ShortcutCore/ShortcutMatcher.swift \

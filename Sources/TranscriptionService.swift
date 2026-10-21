@@ -3,48 +3,6 @@ import os.log
 
 private let transcriptionLog = OSLog(subsystem: "com.ansumanshukla.suki", category: "Transcription")
 
-struct ValidatedAPIConfiguration: Equatable, Sendable {
-    let apiKey: String
-    let baseURL: String
-    let transcriptionAPIURL: String
-    let transcriptionAPIKey: String
-}
-
-enum APIConfigurationSaveFlow {
-    static let defaultBaseURL = "https://api.groq.com/openai/v1"
-
-    @MainActor
-    static func validateAndApply(
-        apiKey: String,
-        baseURL: String,
-        transcriptionAPIURL: String,
-        transcriptionAPIKey: String,
-        validator: @escaping @Sendable (String, String) async -> Bool = { key, url in
-            await TranscriptionService.validateAPIKey(key, baseURL: url)
-        },
-        apply: (ValidatedAPIConfiguration) -> Void
-    ) async -> Bool {
-        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedBaseURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedBaseURL = trimmedBaseURL.isEmpty ? defaultBaseURL : trimmedBaseURL
-        let trimmedTranscriptionURL = transcriptionAPIURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedTranscriptionKey = transcriptionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let effectiveTranscriptionURL = trimmedTranscriptionURL.isEmpty ? resolvedBaseURL : trimmedTranscriptionURL
-        let effectiveTranscriptionKey = trimmedTranscriptionKey.isEmpty ? key : trimmedTranscriptionKey
-        guard await validator(key, resolvedBaseURL) else { return false }
-        if effectiveTranscriptionURL != resolvedBaseURL || effectiveTranscriptionKey != key {
-            guard await validator(effectiveTranscriptionKey, effectiveTranscriptionURL) else { return false }
-        }
-        apply(ValidatedAPIConfiguration(
-            apiKey: key,
-            baseURL: resolvedBaseURL,
-            transcriptionAPIURL: trimmedTranscriptionURL,
-            transcriptionAPIKey: trimmedTranscriptionKey
-        ))
-        return true
-    }
-}
-
 protocol SpeechToTextService: AnyObject {
     func transcribe(fileURL: URL) async throws -> String
 }
@@ -93,31 +51,6 @@ class TranscriptionService: SpeechToTextService {
     static func responseFormat(forModel model: String) -> String {
         let normalizedModel = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return modelsSupportingVerboseJSON.contains(normalizedModel) ? "verbose_json" : "json"
-    }
-
-    // Validate API key by hitting a lightweight endpoint
-    static func validateAPIKey(
-        _ key: String,
-        baseURL: String = "https://api.groq.com/openai/v1",
-        transport: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
-            try await LLMAPITransport.data(for: request)
-        }
-    ) async -> Bool {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        guard let baseURL = try? normalizedBaseURL(from: baseURL) else { return false }
-
-        var request = URLRequest(url: baseURL.appendingPathComponent("models"))
-        request.timeoutInterval = 10
-        request.setValue("Bearer \(trimmed)", forHTTPHeaderField: "Authorization")
-
-        do {
-            let (_, response) = try await transport(request)
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            return status == 200
-        } catch {
-            return false
-        }
     }
 
     // Upload audio file, submit for transcription, poll until done, return text
@@ -299,13 +232,13 @@ class TranscriptionService: SpeechToTextService {
         case 401:
             return "Invalid API key for \(provider). Open Settings to fix it."
         case 403:
-            return "Key lacks permission for this endpoint at \(provider) (HTTP 403). Check the key's scopes."
+            return "Key lacks access to this endpoint or model at \(provider) (HTTP 403). Check the model name and the key's scopes."
         case 404:
-            return "Endpoint not found at \(provider) (HTTP 404). Base URL is likely wrong for this provider."
+            return "Not found at \(provider) (HTTP 404). Check the model name, or the URL of a custom endpoint."
         case 413:
             return "Audio file too large for \(provider) (HTTP 413). Try a shorter recording."
         case 400:
-            return "Provider rejected the request (HTTP 400). Check your model name and Base URL in Settings."
+            return "Provider rejected the request (HTTP 400). Check the model name in Settings."
         case 429:
             return "Rate limit reached at \(provider) (HTTP 429). Wait a moment and try again."
         case 500..<600:

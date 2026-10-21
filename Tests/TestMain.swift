@@ -26,8 +26,11 @@ struct SukiTests {
         TranscriptTextCoreTests.run()
         LiveTranscriptionProviderTests.run()
         await TranscriptionProviderTests.run()
+        await APIProviderTests.run()
+        await LLMProviderTests.run()
         RealtimeTranscriptionServiceTests.run()
         GeminiLiveTranscriptionServiceTests.run()
+        StreamingSTTSessionTests.run()
         LiveTypingCoreTests.run()
         MeetingTranscriptCoreTests.run()
         MeetingStoreTests.run()
@@ -35,8 +38,6 @@ struct SukiTests {
         await MeetingTranscriptionPipelineTests.run()
         await MeetingRecorderTests.run()
         SyntheticKeystrokeTyperTests.run()
-        await TranscriptionServiceTests.run()
-        await APIConfigurationDraftTests.run()
         print("SukiTests passed")
     }
 }

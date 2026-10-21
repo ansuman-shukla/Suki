@@ -79,22 +79,6 @@ final class GeminiTranscriptionService: SpeechToTextService {
         .joined()
         .trimmingCharacters(in: .whitespacesAndNewlines)
     }
-
-    /// Listing models is free and fails for an invalid key.
-    static func validateAPIKey(
-        _ key: String,
-        transport: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
-            try await LLMAPITransport.data(for: request)
-        }
-    ) async -> Bool {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        var request = URLRequest(url: apiBaseURL.appendingPathComponent("models"))
-        request.timeoutInterval = 10
-        request.setValue(trimmed, forHTTPHeaderField: "x-goog-api-key")
-        guard let (_, response) = try? await transport(request) else { return false }
-        return (response as? HTTPURLResponse)?.statusCode == 200
-    }
 }
 
 enum SpeechToTextServiceFactory {
@@ -104,6 +88,9 @@ enum SpeechToTextServiceFactory {
                 "Add your \(credential.displayName) API key in Settings > Transcription."
             )
         }
+        if configuration.provider == .custom, configuration.baseURL.isEmpty {
+            throw TranscriptionError.submissionFailed("Set a custom transcription endpoint in Settings > Transcription.")
+        }
         switch configuration.provider {
         case .gemini:
             return GeminiTranscriptionService(
@@ -111,7 +98,19 @@ enum SpeechToTextServiceFactory {
                 model: configuration.model,
                 language: configuration.language
             )
-        case .standard, .openAI:
+        case .xAI:
+            return XAITranscriptionService(
+                apiKey: configuration.apiKey,
+                model: configuration.model,
+                language: configuration.language
+            )
+        case .deepgram:
+            return DeepgramTranscriptionService(
+                apiKey: configuration.apiKey,
+                model: configuration.model,
+                language: configuration.language
+            )
+        case .groq, .openAI, .custom:
             return try TranscriptionService(
                 apiKey: configuration.apiKey,
                 baseURL: configuration.baseURL,

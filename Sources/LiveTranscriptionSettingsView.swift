@@ -1,16 +1,8 @@
 import SwiftUI
 
 struct LiveTranscriptionSettingsView: View {
-    private enum TestState: Equatable {
-        case idle
-        case testing
-        case succeeded
-        case failed(String)
-    }
-
     @EnvironmentObject var appState: AppState
     @State private var modelDraft = ""
-    @State private var testState: TestState = .idle
 
     private var provider: LiveTranscriptionProvider { appState.liveTranscriptionProvider }
 
@@ -21,12 +13,17 @@ struct LiveTranscriptionSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            SukiSegmentedPicker(
-                "Provider",
-                selection: $appState.liveTranscriptionProvider,
-                options: Array(LiveTranscriptionProvider.allCases),
-                label: \.displayName
-            )
+            HStack {
+                Text("Provider")
+                    .font(.caption.weight(.semibold))
+                Spacer()
+                SettingsPickerMenu(
+                    "Live Transcription Provider",
+                    selection: $appState.liveTranscriptionProvider,
+                    options: LiveTranscriptionProvider.allCases,
+                    label: \.displayName
+                )
+            }
 
             credentialsSection
 
@@ -46,6 +43,17 @@ struct LiveTranscriptionSettingsView: View {
             )
             .id(provider)
 
+            AsyncTestButton(title: "Test connection", successMessage: "Connected to \(provider.displayName)") {
+                commitModel()
+                guard let configuration = appState.liveTranscriptionConfiguration(provider: provider) else {
+                    return .failure(RealtimeTranscriptionError.connectionFailed(
+                        provider == .custom ? "Save a custom endpoint first." : "Save an API key first."
+                    ))
+                }
+                return await LiveTranscriptionConnectionTest.run(configuration)
+            }
+            .id(provider)
+
             Divider()
 
             Toggle("Type text live into the focused app", isOn: $appState.liveTypingEnabled)
@@ -54,11 +62,8 @@ struct LiveTranscriptionSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .onAppear(perform: loadDrafts)
-        .onChange(of: appState.liveTranscriptionProvider) { _ in loadDrafts() }
-        .onChange(of: appState.realtimeStreamingModel) { value in
-            modelDraft = value
-        }
+        .onAppear { modelDraft = appState.realtimeStreamingModel }
+        .onChange(of: appState.realtimeStreamingModel) { modelDraft = $0 }
     }
 
     @ViewBuilder
@@ -71,37 +76,18 @@ struct LiveTranscriptionSettingsView: View {
                 }
                 return await LiveTranscriptionConnectionTest.run(configuration)
             }
+            .id(credential)
         } else {
-            customEndpointSection
-        }
-    }
-
-    private var customEndpointSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Uses the Transcription API URL and key from API Key > Advanced Provider Settings, over its OpenAI-compatible /v1/realtime WebSocket.")
+            Text("Any OpenAI-compatible /v1/realtime WebSocket. Shares its endpoint with Custom upload transcription.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Button(testState == .testing ? "Testing..." : "Test Connection", action: testCustomEndpoint)
-                .disabled(testState == .testing)
-
-            switch testState {
-            case .succeeded:
-                Label("Connected to \(provider.displayName)", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.caption)
-            case .failed(let message):
-                Label(message, systemImage: "xmark.circle.fill")
-                    .foregroundStyle(.red)
-                    .font(.caption)
-            case .idle, .testing:
-                EmptyView()
+            CustomEndpointFields(
+                savedBaseURL: appState.transcriptionAPIURL,
+                savedAPIKey: appState.transcriptionAPIKey
+            ) { baseURL, apiKey in
+                appState.setCustomTranscriptionEndpoint(baseURL: baseURL, apiKey: apiKey)
             }
         }
-    }
-
-    private func loadDrafts() {
-        modelDraft = appState.realtimeStreamingModel
-        testState = .idle
     }
 
     private func commitModel() {
@@ -109,22 +95,5 @@ struct LiveTranscriptionSettingsView: View {
         modelDraft = trimmed
         guard appState.realtimeStreamingModel != trimmed else { return }
         appState.realtimeStreamingModel = trimmed
-    }
-
-    private func testCustomEndpoint() {
-        commitModel()
-        guard let configuration = appState.liveTranscriptionConfiguration(provider: .custom) else {
-            testState = .failed("Set a transcription API URL first.")
-            return
-        }
-        testState = .testing
-        Task { @MainActor in
-            let result = await LiveTranscriptionConnectionTest.run(configuration)
-            guard appState.liveTranscriptionProvider == .custom, testState == .testing else { return }
-            switch result {
-            case .success: testState = .succeeded
-            case .failure(let error): testState = .failed(error.localizedDescription)
-            }
-        }
     }
 }
