@@ -11,7 +11,7 @@
   <sub>Free · Open source · Under 10MB</sub>
 </p>
 
-<!-- Demo video: paste the github.com/user-attachments/assets/... link on its own line here. -->
+https://github.com/user-attachments/assets/b22efd06-0946-4ac7-b02e-1bec8603acff
 
 ## Why Suki
 
