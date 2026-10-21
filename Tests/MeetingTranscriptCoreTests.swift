@@ -47,6 +47,11 @@ enum MeetingTranscriptCoreTests {
         chunkBufferCutsAtMaxEvenWhileTalking()
         chunkBufferTracksStartTimesAcrossChunks()
         chunkBufferFlushReturnsRemainderOnce()
+        chunkBufferStartsAtSpeechOnset()
+        chunkBufferCutsWhenSpeakerGoesQuiet()
+        chunkBufferDropsBlipsButKeepsThemBeforeSpeech()
+        chunkBufferCapsLongSpeechAfterSilence()
+        chunkBufferFlushKeepsTailAndTrimsSilence()
     }
 
     private static func rmsMatchesDefinition() {
@@ -290,9 +295,11 @@ enum MeetingTranscriptCoreTests {
         TestSupport.expect(buffer.append(tone(seconds: 0.5), arrival: 3.5).isEmpty, "First half second buffers")
         let first = buffer.append(silence(seconds: 0.5), arrival: 4.0).first
         TestSupport.expectApproximatelyEqual(first?.start ?? -1, 3.0)
-        let second = buffer.append(silence(seconds: 1), arrival: 9).first
-        TestSupport.expectApproximatelyEqual(second?.start ?? -1, 4.0)
-        TestSupport.expectEqual(second?.samples.count, rate)
+        TestSupport.expect(buffer.append(silence(seconds: 1), arrival: 5).isEmpty, "Silence between lines is not a chunk")
+        TestSupport.expect(buffer.append(tone(seconds: 1.5), arrival: 6.5).isEmpty, "Talking past the target keeps buffering")
+        let second = buffer.append(silence(seconds: 0.1), arrival: 6.6).first
+        TestSupport.expectApproximatelyEqual(second?.start ?? -1, 5.0)
+        TestSupport.expectEqual(second?.samples.count, Int(1.8 * Double(rate)))
 
         var early = MeetingChunkBuffer(speaker: .me)
         _ = early.append(tone(seconds: 0.5), arrival: 0.2)
@@ -307,5 +314,82 @@ enum MeetingTranscriptCoreTests {
         TestSupport.expectEqual(chunk?.samples.count, 3 * rate)
         TestSupport.expectApproximatelyEqual(chunk?.start ?? -1, 10)
         TestSupport.expect(buffer.flush() == nil, "Second flush is empty")
+    }
+
+    private static func chunkBufferStartsAtSpeechOnset() {
+        var buffer = MeetingChunkBuffer(speaker: .me)
+        TestSupport.expect(buffer.append(silence(seconds: 8), arrival: 8).isEmpty, "Silence alone cuts nothing")
+        TestSupport.expect(buffer.append(tone(seconds: 2), arrival: 10).isEmpty, "Speech under the target keeps buffering")
+        let chunk = buffer.flush()
+        TestSupport.expectApproximatelyEqual(chunk?.start ?? -1, 8)
+        // 200 ms of quiet lead-in, then the speech; the rest of the silence is not uploaded.
+        TestSupport.expectEqual(chunk?.samples.count, Int(2.2 * Double(rate)))
+        TestSupport.expectEqual(Array(chunk?.samples.suffix(2 * rate) ?? []), tone(seconds: 2))
+    }
+
+    private static func chunkBufferCutsWhenSpeakerGoesQuiet() {
+        var buffer = MeetingChunkBuffer(speaker: .them)
+        TestSupport.expect(buffer.append(tone(seconds: 1), arrival: 1).isEmpty, "Still talking")
+        TestSupport.expect(buffer.append(silence(seconds: 1.9), arrival: 2.9).isEmpty, "A short pause keeps the line open")
+        let first = buffer.append(silence(seconds: 0.1), arrival: 3)
+        TestSupport.expectEqual(first.count, 1)
+        TestSupport.expectEqual(first.first?.start, 0)
+        // The speech plus 600 ms of its trailing pause; the rest of the pause is dropped.
+        TestSupport.expectEqual(first.first?.samples.count, Int(1.6 * Double(rate)))
+        TestSupport.expect(buffer.append(silence(seconds: 1), arrival: 4).isEmpty, "Silence after a cut stays out")
+        TestSupport.expect(buffer.append(tone(seconds: 1), arrival: 5).isEmpty, "Next line buffers")
+        let second = buffer.flush()
+        TestSupport.expectApproximatelyEqual(second?.start ?? -1, 4)
+        TestSupport.expectEqual(second?.samples.count, Int(1.2 * Double(rate)))
+    }
+
+    private static func chunkBufferDropsBlipsButKeepsThemBeforeSpeech() {
+        var lone = MeetingChunkBuffer(speaker: .me)
+        TestSupport.expect(lone.append(tone(seconds: 0.2) + silence(seconds: 3), arrival: 3.2).isEmpty, "A lone blip is not uploaded")
+        TestSupport.expect(lone.flush() == nil, "A dropped blip leaves nothing to flush")
+
+        var unflushed = MeetingChunkBuffer(speaker: .me)
+        _ = unflushed.append(silence(seconds: 1) + tone(seconds: 0.2), arrival: 1.2)
+        TestSupport.expect(unflushed.flush() == nil, "A blip at stop is not uploaded")
+
+        var shortest = MeetingChunkBuffer(speaker: .me)
+        let word = shortest.append(tone(seconds: 0.3) + silence(seconds: 2), arrival: 2.3)
+        TestSupport.expectEqual(word.map(\.start), [0])
+
+        var merged = MeetingChunkBuffer(speaker: .them)
+        _ = merged.append(silence(seconds: 2) + tone(seconds: 0.2) + silence(seconds: 1) + tone(seconds: 1), arrival: 4.2)
+        let chunk = merged.flush()
+        TestSupport.expectApproximatelyEqual(chunk?.start ?? -1, 2)
+        TestSupport.expectEqual(chunk?.samples.count, Int(2.4 * Double(rate)))
+    }
+
+    private static func chunkBufferCapsLongSpeechAfterSilence() {
+        var buffer = MeetingChunkBuffer(speaker: .them)
+        let chunks = buffer.append(silence(seconds: 3) + tone(seconds: 20), arrival: 23)
+        TestSupport.expectEqual(chunks.count, 1)
+        TestSupport.expectApproximatelyEqual(chunks.first?.start ?? -1, 3)
+        TestSupport.expectApproximatelyEqual(chunks.first?.duration ?? 0, 15)
+        let rest = buffer.flush()
+        TestSupport.expectApproximatelyEqual(rest?.start ?? -1, 17.8)
+        TestSupport.expectApproximatelyEqual(rest?.duration ?? 0, 5.2)
+
+        var marathon = MeetingChunkBuffer(speaker: .me)
+        let cuts = marathon.append(tone(seconds: 31), arrival: 31)
+        TestSupport.expectEqual(cuts.map(\.start), [0, 15])
+        TestSupport.expectEqual(cuts.map(\.samples.count), [15 * rate, 15 * rate])
+        TestSupport.expectApproximatelyEqual(marathon.flush()?.start ?? -1, 30)
+    }
+
+    private static func chunkBufferFlushKeepsTailAndTrimsSilence() {
+        var talking = MeetingChunkBuffer(speaker: .me)
+        _ = talking.append(silence(seconds: 1) + tone(seconds: 2.05), arrival: 3.05)
+        let tail = talking.flush()
+        TestSupport.expectApproximatelyEqual(tail?.start ?? -1, 1)
+        TestSupport.expectEqual(tail?.samples.count, Int(2.25 * Double(rate)))
+        TestSupport.expect(talking.flush() == nil, "Second flush is empty")
+
+        var paused = MeetingChunkBuffer(speaker: .them)
+        _ = paused.append(tone(seconds: 1) + silence(seconds: 1.55), arrival: 2.55)
+        TestSupport.expectEqual(paused.flush()?.samples.count, Int(1.6 * Double(rate)))
     }
 }
