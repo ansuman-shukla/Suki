@@ -5,10 +5,7 @@
 
 <p align="center">
   <a href="https://github.com/ansuman-shukla/Suki/releases/latest">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/download-dark.svg">
-      <img src="docs/assets/readme/download-light.svg" width="280" alt="Download Suki for Mac">
-    </picture>
+    <img src="docs/assets/readme/download.svg" width="280" alt="Download Suki for Mac">
   </a>
   <br>
   <sub>Free · Open source · macOS 13+ · Apple Silicon and Intel</sub>
