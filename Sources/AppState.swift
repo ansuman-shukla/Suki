@@ -9,12 +9,6 @@ import Carbon
 import os.log
 private let recordingLog = OSLog(subsystem: "com.ansumanshukla.suki", category: "Recording")
 
-struct VoiceMacro: Codable, Identifiable, Equatable {
-    var id: UUID = UUID()
-    var command: String
-    var payload: String
-}
-
 struct PrecomputedMacro {
     let original: VoiceMacro
     let normalizedCommand: String
@@ -2508,15 +2502,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
         precomputedMacros = voiceMacros.map { macro in
             PrecomputedMacro(
                 original: macro,
-                normalizedCommand: normalize(macro.command)
+                normalizedCommand: SnippetList.normalizedTrigger(macro.command)
             )
         }
-    }
-
-    private func normalize(_ text: String) -> String {
-        let lowercased = text.lowercased()
-        let strippedPunctuation = lowercased.components(separatedBy: CharacterSet.punctuationCharacters).joined()
-        return strippedPunctuation.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func parseTranscriptCommands(
@@ -2569,7 +2557,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     }
 
     private func findMatchingMacro(for transcript: String) -> VoiceMacro? {
-        let normalizedTranscript = normalize(transcript)
+        let normalizedTranscript = SnippetList.normalizedTrigger(transcript)
         guard !normalizedTranscript.isEmpty else { return nil }
 
         return precomputedMacros.first {
