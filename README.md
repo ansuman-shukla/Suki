@@ -21,9 +21,10 @@ Suki is an open source menu-bar dictation app for macOS. It gives you fast AI tr
 
 ## Quick Start
 
-1. Download the app from the [latest release](https://github.com/ansuman-shukla/Suki/releases/latest).
-2. Get an API key from a supported provider, such as [Groq](https://groq.com/), [OpenAI](https://platform.openai.com/), or [Google AI Studio](https://aistudio.google.com/). Setup asks you to pick a transcription provider and an LLM provider; a provider that does both needs only one key.
-3. Hold `Fn` to talk, or tap `Command-Fn` to start and stop dictation, and whatever you say is pasted into the current text field.
+1. Download `Suki.dmg` from the [latest release](https://github.com/ansuman-shukla/Suki/releases/latest), open it, and drag Suki to Applications.
+2. Open Suki. macOS blocks the first launch because Suki is not notarized by Apple: go to **System Settings > Privacy & Security**, click **Open Anyway**, and confirm. You only do this once; later updates install from inside the app.
+3. Get an API key from a supported provider, such as [Groq](https://groq.com/), [OpenAI](https://platform.openai.com/), or [Google AI Studio](https://aistudio.google.com/). Setup asks you to pick a transcription provider and an LLM provider; a provider that does both needs only one key.
+4. Hold `Fn` to talk, or tap `Command-Fn` to start and stop dictation, and whatever you say is pasted into the current text field.
 
 ## Features
 
