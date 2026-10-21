@@ -3,7 +3,7 @@
 // Usage, from the repository root:
 //   swift scripts/render-readme-art.swift
 //
-// Writes docs/assets/readme/<card>-light.svg, <card>-dark.svg, and download.svg. The README
+// Writes docs/assets/readme/<card>-light.svg and <card>-dark.svg. The README
 // picks the variant with <picture> and prefers-color-scheme. Fonts are named,
 // not embedded, so each viewer's system renders them (New York / SF on Macs).
 
@@ -110,40 +110,41 @@ func waveform(centerX: Double, centerY: Double, bars: Int, maxHeight: Double, co
 
 func hero(_ t: Theme) -> String {
     let typingDuration = "7s"
-    // Matches GitHub's own page color so the hero reads as no background at all,
-    // while staying legible if the viewer's GitHub and system themes disagree.
-    let page = t.name == "dark" ? "#0D1117" : "#FFFFFF"
+    // Transparent on purpose: the hero sits directly on the GitHub page. The README
+    // wraps the whole image in a link, so the drawn button opens the latest release.
     let body = """
     <defs>
       <filter id="shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000" flood-opacity="\(t.name == "dark" ? 0.3 : 0.07)"/></filter>
-      <clipPath id="line1"><rect x="964" y="195" height="70" width="0"><animate attributeName="width" values="0;600;600" keyTimes="0;0.32;1" dur="\(typingDuration)" repeatCount="indefinite"/></rect></clipPath>
-      <clipPath id="line2"><rect x="964" y="262" height="70" width="0"><animate attributeName="width" values="0;0;600;600" keyTimes="0;0.34;0.62;1" dur="\(typingDuration)" repeatCount="indefinite"/></rect></clipPath>
+      <clipPath id="line1"><rect x="964" y="215" height="70" width="0"><animate attributeName="width" values="0;600;600" keyTimes="0;0.32;1" dur="\(typingDuration)" repeatCount="indefinite"/></rect></clipPath>
+      <clipPath id="line2"><rect x="964" y="282" height="70" width="0"><animate attributeName="width" values="0;0;600;600" keyTimes="0;0.34;0.62;1" dur="\(typingDuration)" repeatCount="indefinite"/></rect></clipPath>
     </defs>
-    <rect width="1600" height="500" fill="\(page)"/>
 
-    <image x="8" y="24" width="64" height="64" xlink:href="\(iconDataURI)" href="\(iconDataURI)"/>
-    <text x="88" y="70" class="serif" font-size="40" font-weight="600" fill="\(t.text)">Suki</text>
+    <image x="4" y="16" width="96" height="96" xlink:href="\(iconDataURI)" href="\(iconDataURI)"/>
+    <text x="4" y="250" class="serif" font-size="104" font-weight="600" fill="\(t.text)">Talk.</text>
+    <text x="4" y="358" class="serif" font-size="104" font-weight="600" fill="\(t.text)">Suki <tspan font-style="italic" fill="\(t.accent)">types.</tspan></text>
+    <text x="10" y="424" class="sans" font-size="31" fill="\(t.text2)">Free, private dictation for every app on your Mac.</text>
 
-    <text x="4" y="234" class="serif" font-size="108" font-weight="600" fill="\(t.text)">Talk.</text>
-    <text x="4" y="346" class="serif" font-size="108" font-weight="600" fill="\(t.text)">Suki <tspan font-style="italic" fill="\(t.accent)">types.</tspan></text>
-    <text x="10" y="420" class="sans" font-size="31" fill="\(t.text2)">Dictation for every app on your Mac.</text>
-    <text x="10" y="464" class="sans" font-size="31" fill="\(t.text2)">Free, private, and under 10MB.</text>
+    <rect x="8" y="464" width="350" height="80" rx="40" fill="#C9761F"/>
+    <rect x="8" y="460" width="350" height="80" rx="40" fill="#FFA946"/>
+    <path d="M70 482v24m-10-10 10 10 10-10M58 516h24" fill="none" stroke="#1A1A1A" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="100" y="510" class="sans" font-size="29" font-weight="600" fill="#1A1A1A">Download for Mac</text>
+    <text x="388" y="510" class="sans" font-size="24" fill="\(t.text3)">macOS 13+ · Apple Silicon and Intel</text>
 
-    <g filter="url(#shadow)"><rect x="924" y="36" width="668" height="300" rx="26" fill="\(t.panel)" stroke="\(t.border)" stroke-width="2"/></g>
-    <circle cx="962" cy="74" r="8" fill="\(t.border)"/><circle cx="990" cy="74" r="8" fill="\(t.border)"/><circle cx="1018" cy="74" r="8" fill="\(t.border)"/>
-    <text x="964" y="140" class="sans" font-size="26" fill="\(t.text3)">To: Sam</text>
-    <line x1="954" y1="166" x2="1562" y2="166" stroke="\(t.border)" stroke-width="2"/>
+    <g filter="url(#shadow)"><rect x="924" y="56" width="668" height="300" rx="26" fill="\(t.panel)" stroke="\(t.border)" stroke-width="2"/></g>
+    <circle cx="962" cy="94" r="8" fill="\(t.border)"/><circle cx="990" cy="94" r="8" fill="\(t.border)"/><circle cx="1018" cy="94" r="8" fill="\(t.border)"/>
+    <text x="964" y="160" class="sans" font-size="26" fill="\(t.text3)">To: Sam</text>
+    <line x1="954" y1="186" x2="1562" y2="186" stroke="\(t.border)" stroke-width="2"/>
     <g>
       <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.94;1" dur="\(typingDuration)" repeatCount="indefinite"/>
-      <text x="964" y="240" class="sans" font-size="33" fill="\(t.text)" clip-path="url(#line1)">Hey Sam, the deck is ready.</text>
-      <text x="964" y="304" class="sans" font-size="33" fill="\(t.text)" clip-path="url(#line2)">Want to go over it at 3?</text>
+      <text x="964" y="260" class="sans" font-size="33" fill="\(t.text)" clip-path="url(#line1)">Hey Sam, the deck is ready.</text>
+      <text x="964" y="324" class="sans" font-size="33" fill="\(t.text)" clip-path="url(#line2)">Want to go over it at 3?</text>
     </g>
 
-    \(keycap(t, x: 1000, y: 376, size: 80))
-    <rect x="1104" y="378" width="320" height="76" rx="38" fill="#1A1A1A" stroke="\(t.name == "dark" ? "#464544" : "#1A1A1A")" stroke-width="2"/>
-    \(waveform(centerX: 1264, centerY: 416, bars: 12, maxHeight: 40, color: "#FCFCFB"))
+    \(keycap(t, x: 1000, y: 396, size: 80))
+    <rect x="1104" y="398" width="320" height="76" rx="38" fill="#1A1A1A" stroke="\(t.name == "dark" ? "#464544" : "#1A1A1A")" stroke-width="2"/>
+    \(waveform(centerX: 1264, centerY: 436, bars: 12, maxHeight: 40, color: "#FCFCFB"))
     """
-    return svg(width: 1600, height: 500, title: "Talk. Suki types. Dictation for every app on your Mac.", body)
+    return svg(width: 1600, height: 552, title: "Talk. Suki types. Free, private dictation for every app on your Mac. Download for Mac.", body)
 }
 
 struct Feature {
@@ -292,31 +293,9 @@ func comparison(_ t: Theme) -> String {
                body)
 }
 
-func demoTitle(_ t: Theme) -> String {
-    let height = 150.0
-    let body = """
-    \(card(t, x: 1, y: 1, width: 1598, height: height - 2, radius: 40))
-    <circle cx="104" cy="75" r="40" fill="\(t.accent)" fill-opacity="\(t.tileOpacity + 0.04)"/>
-    <path d="M92 55v40l32-20z" fill="\(t.accent)" stroke="\(t.accent)" stroke-width="6" stroke-linejoin="round"/>
-    <text x="172" y="95" class="serif" font-size="56" font-weight="600" fill="\(t.text)">See Suki in action</text>
-    <text x="1544" y="92" text-anchor="end" class="sans" font-size="30" fill="\(t.text2)">47 seconds · sound on</text>
-    """
-    return svg(width: 1600, height: Int(height), title: "See Suki in action", body)
-}
-
-func downloadButton() -> String {
-    let body = """
-    <rect y="4" width="440" height="88" rx="44" fill="#C9761F"/>
-    <rect width="440" height="88" rx="44" fill="#FFA946"/>
-    <path d="M86 27v26m-11-11 11 11 11-11M73 63h26" fill="none" stroke="#1A1A1A" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="118" y="56" class="sans" font-size="31" font-weight="600" fill="#1A1A1A">Download for Mac</text>
-    """
-    return svg(width: 440, height: 92, title: "Download Suki for Mac", body)
-}
-
 try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
 let cards: [(String, (Theme) -> String)] = [
-    ("hero", hero), ("features", featureGrid), ("steps", steps), ("compare", comparison), ("demo", demoTitle),
+    ("hero", hero), ("features", featureGrid), ("steps", steps), ("compare", comparison),
 ]
 for (name, render) in cards {
     for theme in [light, dark] {
@@ -325,6 +304,3 @@ for (name, render) in cards {
         print("Wrote \(url.path)")
     }
 }
-let downloadURL = outputDirectory.appendingPathComponent("download.svg")
-try downloadButton().write(to: downloadURL, atomically: true, encoding: .utf8)
-print("Wrote \(downloadURL.path)")
