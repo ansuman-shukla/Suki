@@ -631,6 +631,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     @Published var statusText: String = "Ready"
     @Published var hasAccessibility = false {
         didSet {
+            permissionGrantHistory.record(.accessibility, granted: hasAccessibility)
             // The event tap needs Accessibility, so a tap that failed earlier must be retried once it is granted.
             if hasAccessibility && !oldValue && hotkeyMonitoringErrorMessage != nil {
                 restartHotkeyMonitoring()
@@ -656,7 +657,10 @@ final class AppState: ObservableObject, @unchecked Sendable {
     @Published var lastContextWindowTitle: String = ""
     @Published var lastContextSelectedText: String = ""
     @Published var lastContextLLMPrompt: String = ""
-    @Published var hasScreenRecordingPermission = false
+    @Published var hasScreenRecordingPermission = false {
+        didSet { permissionGrantHistory.record(.screenRecording, granted: hasScreenRecordingPermission) }
+    }
+    private let permissionGrantHistory = PermissionGrantHistory(defaults: .standard)
     @Published var launchAtLogin: Bool {
         didSet { setLaunchAtLogin(launchAtLogin) }
     }
@@ -1543,6 +1547,44 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if !trusted {
             openPrivacySettingsPane("Privacy_Accessibility")
         }
+    }
+
+    /// True when this install held the permission before but macOS now denies it,
+    /// usually a stale grant that System Settings still shows as enabled.
+    func permissionWasLost(_ permission: PrivacyPermission) -> Bool {
+        permissionGrantHistory.wasLost(permission, currentlyGranted: isGranted(permission))
+    }
+
+    private func isGranted(_ permission: PrivacyPermission) -> Bool {
+        switch permission {
+        case .accessibility: return hasAccessibility
+        case .screenRecording: return hasScreenRecordingPermission
+        }
+    }
+
+    /// Clears this app's stored grant and asks again, so macOS records a grant for the running signature.
+    func repairPermission(_ permission: PrivacyPermission) {
+        do {
+            try PermissionReset.reset(permission, bundleIdentifier: Bundle.main.bundleIdentifier, history: permissionGrantHistory)
+        } catch {
+            os_log(.error, log: recordingLog, "Permission reset failed: %{public}@", error.localizedDescription)
+            showPermissionRepairFailedAlert(permission, error: error)
+            return
+        }
+        objectWillChange.send()
+        switch permission {
+        case .accessibility: openAccessibilitySettings()
+        case .screenRecording: requestScreenCapturePermission()
+        }
+    }
+
+    private func showPermissionRepairFailedAlert(_ permission: PrivacyPermission, error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Couldn't Repair \(permission.displayName)"
+        alert.informativeText = "\(error.localizedDescription)\n\nOpen System Settings > Privacy & Security > \(permission.displayName), select \(AppName.displayName), click the minus button to remove it, then grant access again."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        _ = alert.runModal()
     }
 
     func openMicrophoneSettings() {
@@ -2586,17 +2628,47 @@ final class AppState: ObservableObject, @unchecked Sendable {
     }
 
     func showAccessibilityAlert() {
-        let alert = NSAlert()
-        alert.messageText = "Accessibility Permission Required"
-        alert.informativeText = "\(AppName.displayName) cannot type transcriptions without Accessibility access.\n\nGo to System Settings > Privacy & Security > Accessibility and enable \(AppName.displayName)."
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Dismiss")
-        alert.icon = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)
+        showPermissionAlert(
+            .accessibility,
+            title: "Accessibility Permission Required",
+            message: "\(AppName.displayName) cannot type transcriptions without Accessibility access.\n\nGo to System Settings > Privacy & Security > Accessibility and enable \(AppName.displayName).",
+            symbolName: "exclamationmark.triangle.fill",
+            openSettings: openAccessibilitySettings
+        )
+    }
 
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            openAccessibilitySettings()
+    /// Always offers Repair because a stale grant looks enabled in System Settings; leads with it when the grant was lost.
+    private func showPermissionAlert(
+        _ permission: PrivacyPermission,
+        title: String,
+        message: String,
+        symbolName: String,
+        openSettings: () -> Void
+    ) {
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.icon = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+
+        if permissionWasLost(permission) {
+            alert.messageText = "\(permission.displayName) Permission Needs Repair"
+            alert.informativeText = "macOS no longer honors \(AppName.displayName)'s \(permission.displayName) access, even if System Settings still shows it switched on. This can happen after \(AppName.displayName) is reinstalled or replaced.\n\nClick Repair, then switch \(AppName.displayName) on again when asked."
+            alert.addButton(withTitle: "Repair")
+            alert.addButton(withTitle: "Dismiss")
+            if alert.runModal() == .alertFirstButtonReturn {
+                repairPermission(permission)
+            }
+            return
+        }
+
+        alert.messageText = title
+        alert.informativeText = "\(message)\n\nAlready switched on in System Settings? Click Repair to clear the outdated permission and grant it again."
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Repair")
+        alert.addButton(withTitle: "Dismiss")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: openSettings()
+        case .alertSecondButtonReturn: repairPermission(permission)
+        default: break
         }
     }
 
@@ -3446,18 +3518,13 @@ final class AppState: ObservableObject, @unchecked Sendable {
     }
 
     private func showScreenshotPermissionAlert(message: String) {
-        let alert = NSAlert()
-        alert.messageText = "Screen Recording Permission Required"
-        alert.informativeText = "\(message)\n\n\(AppName.displayName) requires Screen Recording permission to capture screenshots for context-aware transcription.\n\nGo to System Settings > Privacy & Security > Screen Recording and enable \(AppName.displayName)."
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Dismiss")
-        alert.icon = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: nil)
-
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            openScreenCaptureSettings()
-        }
+        showPermissionAlert(
+            .screenRecording,
+            title: "Screen Recording Permission Required",
+            message: "\(message)\n\n\(AppName.displayName) requires Screen Recording permission to capture screenshots for context-aware transcription.\n\nGo to System Settings > Privacy & Security > Screen Recording and enable \(AppName.displayName).",
+            symbolName: "camera.viewfinder",
+            openSettings: openScreenCaptureSettings
+        )
     }
 
     private func showScreenshotCaptureErrorAlert(message: String) {
