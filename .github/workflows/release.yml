@@ -48,6 +48,8 @@ jobs:
             echo "## Download"
             echo
             echo "**[Suki.dmg](https://github.com/ansuman-shukla/Suki/releases/download/${{ steps.version.outputs.tag }}/Suki.dmg)** — Universal build for all Macs (Apple Silicon + Intel)."
+            echo
+            echo "**First launch:** open the DMG and drag Suki to Applications. macOS blocks the first launch because Suki is not notarized by Apple: open Suki once, then go to System Settings > Privacy & Security and click **Open Anyway**. Updates after that install from inside the app."
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -59,18 +61,24 @@ jobs:
           brew install create-dmg fileicon
 
       # --- Code signing setup ---
+      # Releases are signed with the project's self-signed "Suki Release" certificate, not an
+      # Apple Developer ID, so they are not notarized. Users approve the first launch once in
+      # System Settings. Every release must use the same certificate: the in-app updater only
+      # installs updates that match the installed app's signature.
       # Required GitHub secrets:
-      #   DEVELOPER_ID_CERTIFICATE_BASE64 — base64-encoded .p12 Developer ID certificate
-      #   DEVELOPER_ID_CERTIFICATE_PASSWORD — password for the .p12
-      #   APPLE_ID — Apple ID email for notarization
-      #   APPLE_TEAM_ID — 10-character Apple Team ID
-      #   APPLE_APP_PASSWORD — app-specific password for notarization
-      - name: Import Developer ID certificate
+      #   SUKI_SIGNING_CERTIFICATE_BASE64 — base64-encoded .p12 with the certificate and private key
+      #   SUKI_SIGNING_CERTIFICATE_PASSWORD — password for the .p12
+      - name: Import signing certificate
         env:
-          CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_BASE64 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          CERTIFICATE_BASE64: ${{ secrets.SUKI_SIGNING_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.SUKI_SIGNING_CERTIFICATE_PASSWORD }}
         run: |
-          CERTIFICATE_PATH="$RUNNER_TEMP/developer_id.p12"
+          if [ -z "$CERTIFICATE_BASE64" ] || [ -z "$CERTIFICATE_PASSWORD" ]; then
+            echo "Missing SUKI_SIGNING_CERTIFICATE_BASE64 or SUKI_SIGNING_CERTIFICATE_PASSWORD secret." >&2
+            exit 1
+          fi
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/signing.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -hex 20)"
 
@@ -98,23 +106,15 @@ jobs:
           # Add temporary keychain to search list
           security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
 
-          # Extract signing identity
-          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          # A self-signed certificate is never "valid" to find-identity -v, so select it by its SHA-1 hash.
+          IDENTITY=$(security find-identity -p codesigning "$KEYCHAIN_PATH" | awk '/\) [0-9A-F]{40} "Suki Release"/ { print $2; exit }')
+          if [ -z "$IDENTITY" ]; then
+            echo "No \"Suki Release\" signing identity found in the certificate." >&2
+            exit 1
+          fi
           echo "CODESIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "Found signing identity: $IDENTITY"
-
-      - name: Store notarization credentials
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-        run: |
-          xcrun notarytool store-credentials "notarytool-profile" \
-            --apple-id "$APPLE_ID" \
-            --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_PASSWORD" \
-            --keychain "$KEYCHAIN_PATH"
 
       # --- Build universal ---
       - name: Build universal
@@ -126,13 +126,12 @@ jobs:
       - name: Sign universal DMG
         run: codesign --force --sign "$CODESIGN_IDENTITY" build/Suki.dmg
 
-      - name: Notarize universal DMG
+      - name: Verify app signature
         run: |
-          xcrun notarytool submit build/Suki.dmg \
-            --keychain-profile "notarytool-profile" \
-            --keychain "$KEYCHAIN_PATH" \
-            --wait
-          xcrun stapler staple build/Suki.dmg
+          hdiutil attach build/Suki.dmg -nobrowse -readonly -mountpoint "$RUNNER_TEMP/suki-dmg"
+          codesign --verify --deep --strict --verbose=2 "$RUNNER_TEMP/suki-dmg/Suki.app"
+          codesign -d -r- "$RUNNER_TEMP/suki-dmg/Suki.app"
+          hdiutil detach "$RUNNER_TEMP/suki-dmg"
 
       - name: Save universal DMG
         run: mv build/Suki.dmg Suki.dmg
@@ -153,7 +152,7 @@ jobs:
       - name: Cleanup signing artifacts
         if: always()
         run: |
-          rm -f "$RUNNER_TEMP/developer_id.p12"
+          rm -f "$RUNNER_TEMP/signing.p12"
           KPATH="${KEYCHAIN_PATH:-$RUNNER_TEMP/signing.keychain-db}"
           if [ -f "$KPATH" ]; then
             security delete-keychain "$KPATH"
