@@ -71,16 +71,63 @@
 
 <sub>Wispr Flow details come from its pricing and privacy pages and the size of version 1.6, checked October 2026. Suki is free, but your AI provider may charge for usage.</sub>
 
-## Quick Start
+## Get Started in 3 Steps
 
-1. Download `Suki.dmg` from the [latest release](https://github.com/ansuman-shukla/Suki/releases/latest), open it, and drag Suki to Applications.
-2. Open Suki. macOS blocks the first launch because Suki is not notarized by Apple: go to **System Settings > Privacy & Security**, click **Open Anyway**, and confirm. You only do this once; later updates install from inside the app.
-3. Get an API key from a supported provider, such as [Groq](https://groq.com/), [OpenAI](https://platform.openai.com/), or [Google AI Studio](https://aistudio.google.com/). Setup asks you to pick a transcription provider and an LLM provider; a provider that does both needs only one key.
-4. Hold `Fn` to talk, or tap `Command-Fn` to start and stop dictation, and whatever you say is pasted into the current text field.
+1. **Install it.** Download `Suki.dmg` from the [latest release](https://github.com/ansuman-shukla/Suki/releases/latest), open it, and drag Suki to Applications.
+   The first time you open it, macOS blocks it because Suki isn't notarized by Apple. Go to **System Settings > Privacy & Security**, click **Open Anyway**, and confirm. You only do this once; updates install from inside the app.
+2. **Add an AI key.** Setup walks you through it. The easiest start is a key from [Groq](https://console.groq.com/keys), because one Groq key handles both transcription and cleanup. [OpenAI](https://platform.openai.com/) and [Google AI Studio](https://aistudio.google.com/) work too.
+3. **Hold `Fn` and talk.** Let go, and your words appear wherever your cursor is. Want to go hands-free? Tap `Command-Fn` to start, and tap it again to stop.
+
+Suki asks for **Microphone** access to hear you and **Accessibility** access to type for you. **Screen Recording** is optional and helps Suki spell names it can see on screen.
+
+## What You Can Do
+
+- **Dictate anywhere.** Email, Slack, Notion, your code editor, or the terminal. Suki removes the "ums" and fixes punctuation for you.
+- **Edit with your voice.** Highlight some text and say "make this shorter" or "turn this into bullets." Turn on Edit Mode in Settings.
+- **Snippets.** Say a short phrase and Suki types the full text, like your email signature or a meeting link.
+- **Dictionary.** Teach Suki names, product terms, and jargon once, and it keeps spelling them the way you do.
+- **Meeting transcripts.** When a call starts in Zoom, Google Meet, Teams, Slack, and others, Suki offers to take notes and gives you a transcript of what you said and what they said. Needs macOS 14.2 or later.
+- **Live typing.** Watch your words appear as you speak, with providers that support it.
+- **Your own shortcuts.** Change the hold-to-talk and hands-free shortcuts to whatever keys you like.
 
 ## Privacy
 
-There is no Suki server, so Suki does not store or retain your data. The only information that leaves your computer are API calls to the transcription and LLM providers you configure.
+- **No Suki server.** There's no account, no sign-up, and no tracking. Suki has no server to send your data to.
+- **Your voice goes only where you send it.** Audio and text go straight to the AI provider you choose. Use local models, and nothing leaves your Mac at all.
+- **Your stuff stays on your Mac.** Dictation history and meeting transcripts are saved locally, and your API keys are stored in the macOS Keychain.
+- **You control context.** If you allow Screen Recording, Suki sends a screenshot of the app you're dictating into to your AI provider, so it can spell names right. Skip that permission and Suki works without it.
+
+## FAQ
+
+<details>
+  <summary><b>How much does it cost?</b></summary>
+
+  Suki is free. You pay your AI provider for what you use, which is usually a few cents for a lot of dictation. Some providers, like Groq, have a free tier, and local models cost nothing.
+</details>
+
+<details>
+  <summary><b>Which provider should I pick?</b></summary>
+
+  Start with Groq: it's fast, cheap, and one key covers everything. If you want to see words appear while you talk, try OpenAI or Gemini for live typing. You can switch any time in Settings.
+</details>
+
+<details>
+  <summary><b>Why does macOS say it can't verify Suki?</b></summary>
+
+  Suki isn't notarized by Apple, so macOS asks you to confirm the first launch. Click **Open Anyway** in **System Settings > Privacy & Security**. Suki checks the signature of every update before it installs it.
+</details>
+
+<details>
+  <summary><b>Can I use it without the internet?</b></summary>
+
+  Yes, if you run both transcription and cleanup on local models. See [Using a Local Model](docs/advanced.md#using-a-local-model).
+</details>
+
+<details>
+  <summary><b>Does it work on Intel Macs?</b></summary>
+
+  Yes. Suki runs on Apple Silicon and Intel Macs with macOS 13 or later.
+</details>
 
 ## For Power Users
 
