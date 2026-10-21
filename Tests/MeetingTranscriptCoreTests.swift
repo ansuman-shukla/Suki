@@ -52,6 +52,8 @@ enum MeetingTranscriptCoreTests {
         chunkBufferDropsBlipsButKeepsThemBeforeSpeech()
         chunkBufferCapsLongSpeechAfterSilence()
         chunkBufferFlushKeepsTailAndTrimsSilence()
+        chunkBufferEndsLineWhenOtherSideSpeaks()
+        chunkBufferReportsLastSpeechButNotBlips()
     }
 
     private static func rmsMatchesDefinition() {
@@ -391,5 +393,44 @@ enum MeetingTranscriptCoreTests {
         var paused = MeetingChunkBuffer(speaker: .them)
         _ = paused.append(tone(seconds: 1) + silence(seconds: 1.55), arrival: 2.55)
         TestSupport.expectEqual(paused.flush()?.samples.count, Int(1.6 * Double(rate)))
+    }
+
+    private static func chunkBufferEndsLineWhenOtherSideSpeaks() {
+        var buffer = MeetingChunkBuffer(speaker: .them)
+        _ = buffer.append(silence(seconds: 1) + tone(seconds: 1), arrival: 2)
+        TestSupport.expect(
+            buffer.append(silence(seconds: 1), arrival: 3, otherSpeechTime: 0.9).isEmpty,
+            "Speech from the other side before this line began doesn't end it"
+        )
+        let cut = buffer.append(silence(seconds: 0.1), arrival: 3.1, otherSpeechTime: 2.5)
+        TestSupport.expectEqual(cut.count, 1)
+        TestSupport.expectApproximatelyEqual(cut.first?.start ?? -1, 1)
+        TestSupport.expectEqual(cut.first?.samples.count, Int(1.8 * Double(rate)))
+
+        var reply = MeetingChunkBuffer(speaker: .me)
+        _ = reply.append(tone(seconds: 1), arrival: 1)
+        TestSupport.expect(
+            reply.append(silence(seconds: 0.5), arrival: 1.5, otherSpeechTime: 1.2).isEmpty,
+            "A breath shorter than the turn pause keeps the line open"
+        )
+        TestSupport.expectEqual(reply.append(silence(seconds: 0.1), arrival: 1.6, otherSpeechTime: 1.2).map(\.start), [0])
+
+        var talking = MeetingChunkBuffer(speaker: .me)
+        TestSupport.expect(
+            talking.append(tone(seconds: 3), arrival: 3, otherSpeechTime: 2).isEmpty,
+            "The other side talking over this one doesn't cut mid-speech"
+        )
+    }
+
+    private static func chunkBufferReportsLastSpeechButNotBlips() {
+        var buffer = MeetingChunkBuffer(speaker: .me)
+        _ = buffer.append(silence(seconds: 1) + tone(seconds: 0.2), arrival: 1.2)
+        TestSupport.expect(buffer.lastSpeechTime == nil, "Two voiced windows are a blip, not speech")
+        _ = buffer.append(tone(seconds: 0.1), arrival: 1.3)
+        TestSupport.expectApproximatelyEqual(buffer.lastSpeechTime ?? -1, 1.3)
+        _ = buffer.append(tone(seconds: 0.5) + silence(seconds: 3), arrival: 4.8)
+        TestSupport.expectApproximatelyEqual(buffer.lastSpeechTime ?? -1, 1.8)
+        _ = buffer.append(tone(seconds: 0.2) + silence(seconds: 3), arrival: 8)
+        TestSupport.expectApproximatelyEqual(buffer.lastSpeechTime ?? -1, 1.8)
     }
 }

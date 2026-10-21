@@ -73,9 +73,10 @@ enum MeetingTranscriptCore {
     static let minVoicedWindows = 3
     /// Quiet audio kept in front of an utterance so soft first sounds aren't clipped.
     static let leadInSeconds: TimeInterval = 0.2
-    /// Trailing pause kept on a chunk; longer pauses are trimmed before upload.
+    /// A pause this long ends an utterance once the other side has spoken since it began.
+    /// It is also the most trailing pause a chunk keeps; longer pauses are trimmed.
     static let turnPauseSeconds: TimeInterval = 0.6
-    /// A pause this long ends an utterance.
+    /// A pause this long ends an utterance even when nobody else spoke.
     static let longPauseSeconds: TimeInterval = 2
 
     static func windows(_ seconds: TimeInterval) -> Int {
@@ -265,13 +266,19 @@ enum MeetingTranscriptCore {
 
 /// Cuts one speaker's 16 kHz stream into utterances, judged in `levelWindowSeconds` windows
 /// against `silenceRMS`. A chunk starts at the first voiced window, so silence never shifts
-/// it earlier, and only a short lead-in of the silence before it is kept. A chunk ends after a
-/// long pause, at the first quiet window past the target length, or at the max length even
-/// mid-word. Utterances with fewer than `minVoicedWindows` voiced windows are dropped as blips.
+/// it earlier, and only a short lead-in of the silence before it is kept. A chunk ends when
+/// the speaker pauses for `turnPauseSeconds` after the other side has spoken since it began
+/// (a change of turn), after a `longPauseSeconds` pause, at the first quiet window past the
+/// target length, or at the max length even mid-word. A speaker talking alone keeps long
+/// chunks, which keeps context for the transcriber and the request count low. Utterances
+/// with fewer than `minVoicedWindows` voiced windows are dropped as blips.
 struct MeetingChunkBuffer {
     let speaker: MeetingSpeaker
     var targetSeconds = MeetingTranscriptCore.targetChunkSeconds
     var maxSeconds = MeetingTranscriptCore.maxChunkSeconds
+    /// End of this speaker's latest voiced window, in seconds since the meeting began.
+    /// Blips don't count. The other speaker's buffer reads it to notice a change of turn.
+    private(set) var lastSpeechTime: TimeInterval?
     private let windowSize = Int(MeetingTranscriptCore.sampleRate * MeetingTranscriptCore.levelWindowSeconds)
     private let leadInWindows = MeetingTranscriptCore.windows(MeetingTranscriptCore.leadInSeconds)
     private let pauseWindows = MeetingTranscriptCore.windows(MeetingTranscriptCore.turnPauseSeconds)
@@ -293,8 +300,13 @@ struct MeetingChunkBuffer {
     var pendingSeconds: TimeInterval { Double(pending.count + unjudged.count) / MeetingTranscriptCore.sampleRate }
 
     /// `arrival` is seconds since the meeting began when these samples were delivered.
+    /// `otherSpeechTime` is the other speaker's `lastSpeechTime`.
     /// Returns every chunk completed by this batch, oldest first.
-    mutating func append(_ samples: [Float], arrival: TimeInterval) -> [MeetingAudioChunk] {
+    mutating func append(
+        _ samples: [Float],
+        arrival: TimeInterval,
+        otherSpeechTime: TimeInterval? = nil
+    ) -> [MeetingAudioChunk] {
         guard !samples.isEmpty else { return [] }
         if streamOffset == nil {
             streamOffset = max(0, arrival - Double(samples.count) / MeetingTranscriptCore.sampleRate)
@@ -303,7 +315,9 @@ struct MeetingChunkBuffer {
         var chunks: [MeetingAudioChunk] = []
         var index = 0
         while unjudged.count - index >= windowSize {
-            if let chunk = judge(unjudged[index..<index + windowSize]) { chunks.append(chunk) }
+            if let chunk = judge(unjudged[index..<index + windowSize], otherSpeechTime: otherSpeechTime) {
+                chunks.append(chunk)
+            }
             index += windowSize
         }
         unjudged.removeFirst(index)
@@ -321,31 +335,33 @@ struct MeetingChunkBuffer {
         return cut()
     }
 
-    private mutating func judge(_ window: ArraySlice<Float>) -> MeetingAudioChunk? {
+    private mutating func judge(_ window: ArraySlice<Float>, otherSpeechTime: TimeInterval?) -> MeetingAudioChunk? {
         guard let streamOffset else { return nil }
         let time = streamOffset + Double(judgedSamples) / MeetingTranscriptCore.sampleRate
         judgedSamples += window.count
         let isVoiced = MeetingTranscriptCore.rms(window) >= MeetingTranscriptCore.silenceRMS
         pending += window
-        guard onset != nil else {
-            if isVoiced {
-                self.onset = time
-                voicedWindows = 1
-            } else {
-                pending.removeFirst(max(0, pending.count - leadInWindows * windowSize))
-            }
+        guard let onset = onset ?? (isVoiced ? time : nil) else {
+            pending.removeFirst(max(0, pending.count - leadInWindows * windowSize))
             return nil
         }
+        self.onset = onset
         if isVoiced {
             voicedWindows += 1
             quietRun = 0
+            if voicedWindows >= MeetingTranscriptCore.minVoicedWindows {
+                lastSpeechTime = time + Double(window.count) / MeetingTranscriptCore.sampleRate
+            }
         } else {
             quietRun += 1
         }
         let seconds = Double(pending.count) / MeetingTranscriptCore.sampleRate
         if seconds >= maxSeconds { return finishUtterance() }
         guard !isVoiced else { return nil }
-        if quietRun >= longPauseWindows { return finishUtterance() }
+        let otherSideSpoke = (otherSpeechTime ?? -.infinity) > onset
+        if quietRun >= longPauseWindows || (quietRun >= pauseWindows && otherSideSpoke) {
+            return finishUtterance()
+        }
         return seconds >= targetSeconds ? finishUtterance() : nil
     }
 

@@ -103,6 +103,7 @@ enum MeetingRecorderTests {
         await silentMeetingSavesNothing()
         await copyAndDeletePastMeetings()
         await conversationKeepsSpeakingOrder()
+        await quickRepliesStayInterleaved()
     }
 
     @MainActor
@@ -126,6 +127,28 @@ enum MeetingRecorderTests {
             TestSupport.expectApproximatelyEqual(actual, expected, accuracy: 0.001)
         }
         TestSupport.expectEqual(MeetingTranscriptCore.turns(segments).count, 4)
+    }
+
+    @MainActor
+    private static func quickRepliesStayInterleaved() async {
+        let harness = Harness()
+        let recorder = harness.recorder
+        await recorder.start()
+        let tone = MeetingTranscriptCoreTests.tone, silence = MeetingTranscriptCoreTests.silence
+        // Each side pauses only 1.6 s while the other answers, shorter than the long pause.
+        harness.play(
+            them: tone(1, 0.2) + silence(1.6) + tone(1, 0.2) + silence(3.9),
+            me: silence(1.3) + tone(1, 0.2) + silence(1.6) + tone(3, 0.2) + silence(0.6)
+        )
+        await harness.settle { harness.transcriber.calls == 3 }
+        TestSupport.expectEqual(recorder.liveSegments.map(\.speaker), [.them, .me, .them])
+        await recorder.stop()
+        TestSupport.expectEqual(harness.transcriber.calls, 4)
+        TestSupport.expectEqual(harness.copied, ["Them: 1 seconds\nMe: 1 seconds\nThem: 1 seconds\nMe: 3 seconds"])
+        let segments = harness.store.loadAll().first?.segments ?? []
+        for (actual, expected) in zip(segments.map(\.start), [0, 1.3, 2.6, 3.9]) {
+            TestSupport.expectApproximatelyEqual(actual, expected, accuracy: 0.001)
+        }
     }
 
     @MainActor

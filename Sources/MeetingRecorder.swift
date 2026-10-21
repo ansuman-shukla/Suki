@@ -151,7 +151,8 @@ final class MeetingRecorder: ObservableObject {
         levels[speaker] = MeetingTranscriptCore.displayLevel(rms: rms)
         let loudest = levels.values.max() ?? 0
         if abs(loudest - level) > 0.02 { level = loudest }
-        for chunk in buffers[speaker]?.append(samples, arrival: arrival) ?? [] {
+        let otherSpeechTime = buffers.filter { $0.key != speaker }.compactMap(\.value.lastSpeechTime).max()
+        for chunk in buffers[speaker]?.append(samples, arrival: arrival, otherSpeechTime: otherSpeechTime) ?? [] {
             queue?.enqueue(chunk)
         }
     }
