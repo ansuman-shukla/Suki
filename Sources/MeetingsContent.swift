@@ -9,6 +9,8 @@ struct MeetingsScreen {
     var meetings: [MeetingRecord] = []
     var toast: String?
     var errorMessage: String?
+    /// Another app is blanking the mic and Suki is reconnecting it.
+    var micBlocked = false
     /// Why recording can't start right now, e.g. an old macOS or no API key.
     var unavailableReason: String?
 }
@@ -141,6 +143,13 @@ private struct LiveMeetingCard: View {
                 .opacity(isFinishing ? 0.6 : 1)
             }
 
+            if screen.micBlocked && !isFinishing {
+                Label("Another app is blocking your mic. Reconnecting…", systemImage: "mic.slash")
+                    .font(SukiFont.ui(13))
+                    .foregroundStyle(Theme.destructive)
+                    .transition(.opacity)
+            }
+
             Rectangle()
                 .fill(Theme.divider)
                 .frame(height: 1)
@@ -160,6 +169,7 @@ private struct LiveMeetingCard: View {
             RoundedRectangle(cornerRadius: Radius.xl, style: .continuous)
                 .fill(Theme.card)
         )
+        .animation(.suki, value: screen.micBlocked)
     }
 }
 
