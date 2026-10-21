@@ -146,7 +146,7 @@ private struct LiveMeetingCard: View {
                 .frame(height: 1)
 
             if lines.isEmpty {
-                Text(isFinishing ? "Writing up the last few seconds…" : "Listening. Lines show up here every \(Int(MeetingTranscriptCore.targetChunkSeconds)) seconds or so.")
+                Text(isFinishing ? "Writing up the last few seconds…" : "Listening. Lines show up here each time someone pauses.")
                     .font(SukiFont.ui(14))
                     .foregroundStyle(Theme.textTertiary)
             } else {
