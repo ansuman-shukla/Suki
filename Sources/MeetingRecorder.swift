@@ -12,6 +12,8 @@ final class MeetingRecorder: ObservableObject {
     @Published private(set) var level: Float = 0
     @Published private(set) var meetings: [MeetingRecord]
     @Published private(set) var toast: String?
+    /// The mic is being blanked by another app and Suki is trying to get it back.
+    @Published private(set) var micBlocked = false
     @Published var errorMessage: String?
 
     var isActive: Bool { phase != .idle }
@@ -28,6 +30,7 @@ final class MeetingRecorder: ObservableObject {
     private var levels: [MeetingSpeaker: Float] = [:]
     private var receivedSamples: [MeetingSpeaker: Int] = [:]
     private var peakRMS: [MeetingSpeaker: Float] = [:]
+    private var micWatchdog = MeetingMicWatchdog()
     private var toastTask: Task<Void, Never>?
 
     init(
@@ -68,15 +71,11 @@ final class MeetingRecorder: ObservableObject {
             self.queue = queue
             buffers = Dictionary(uniqueKeysWithValues: MeetingSpeaker.allCases.map { ($0, MeetingChunkBuffer(speaker: $0)) })
             liveSegments = []
-            let startedAt = now(), now = now
+            let startedAt = now()
             self.startedAt = startedAt
             self.sources = sources
             for source in sources {
-                let speaker = source.speaker
-                try source.start { [weak self] samples in
-                    let arrival = now().timeIntervalSince(startedAt)
-                    DispatchQueue.main.async { self?.ingest(samples, from: speaker, arrival: arrival) }
-                }
+                try startCapture(source, startedAt: startedAt)
             }
             phase = .recording
             os_log(.info, log: meetingLog, "Meeting started with sources: %{public}@",
@@ -154,6 +153,35 @@ final class MeetingRecorder: ObservableObject {
         if let chunk = buffers[speaker]?.append(samples, arrival: arrival) {
             queue?.enqueue(chunk)
         }
+        if speaker == .me { watchMicrophone(samples) }
+    }
+
+    private func startCapture(_ source: MeetingAudioSource, startedAt: Date) throws {
+        let speaker = source.speaker, now = now
+        try source.start { [weak self] samples in
+            let arrival = now().timeIntervalSince(startedAt)
+            DispatchQueue.main.async { self?.ingest(samples, from: speaker, arrival: arrival) }
+        }
+    }
+
+    private func watchMicrophone(_ samples: [Float]) {
+        switch micWatchdog.inspect(samples) {
+        case .fine:
+            break
+        case .recovered:
+            micBlocked = false
+            os_log(.info, log: meetingLog, "Meeting mic recovered")
+        case .restart:
+            micBlocked = true
+            guard let startedAt, let mic = sources.first(where: { $0.speaker == .me }) else { return }
+            os_log(.info, log: meetingLog, "Meeting mic is blanked by another app, restarting it")
+            mic.stop()
+            do {
+                try startCapture(mic, startedAt: startedAt)
+            } catch {
+                os_log(.error, log: meetingLog, "Meeting mic restart failed: %{public}@", String(describing: error))
+            }
+        }
     }
 
     private func reset() {
@@ -163,6 +191,8 @@ final class MeetingRecorder: ObservableObject {
         levels = [:]
         receivedSamples = [:]
         peakRMS = [:]
+        micWatchdog = MeetingMicWatchdog()
+        micBlocked = false
         level = 0
         startedAt = nil
         liveSegments = []
