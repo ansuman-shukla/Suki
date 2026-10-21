@@ -27,6 +27,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/HomeHistoryGrouping.swift \
 	Sources/LLMAPITransport.swift \
 	Sources/LLMCooldownManager.swift \
+	Sources/LLMProvider.swift \
 	Sources/LiveTranscriptionProvider.swift \
 	Sources/MeetingDetectionCore.swift \
 	Sources/LiveTranscriptionSession.swift \
