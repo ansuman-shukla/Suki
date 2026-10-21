@@ -111,7 +111,13 @@ enum ModelConfigurationTests {
         let luna = ModelConfiguration.nonContentRequestOptions(model: "gpt-6-luna", temperature: 0)
         TestSupport.expectEqual(luna["temperature"] as? Double, 0)
         TestSupport.expectEqual(luna["reasoning_effort"] as? String, "none")
-        TestSupport.expectEqual(ModelConfiguration.config(for: "gpt-6.1-sol").reasoningEffort, "none")
+        TestSupport.expectEqual(ModelConfiguration.config(for: "gpt-6-sol").reasoningEffort, "none")
+        // Probed live: these reject reasoning_effort "none" and temperature 0.
+        for model in ["gpt-6.1-sol", "gpt-6-astra"] {
+            let options = ModelConfiguration.nonContentRequestOptions(model: model, temperature: 0)
+            TestSupport.expectEqual(options["reasoning_effort"] as? String, "low")
+            TestSupport.expect(options["temperature"] == nil, "\(model) must not receive temperature")
+        }
         TestSupport.expectEqual(ModelConfiguration.config(for: "gpt-5.4-mini").reasoningEffort, "none")
         TestSupport.expectEqual(ModelConfiguration.config(for: "grok-4.7").reasoningEffort, "low")
         // Gemini's compatibility layer rejects reasoning_effort "none".

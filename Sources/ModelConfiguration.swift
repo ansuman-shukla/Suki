@@ -215,7 +215,18 @@ public struct ModelConfiguration {
                 omitsTemperature: true
             )
         }
-        // OpenAI reasoning models only accept temperature 0 with reasoning off.
+        // These cannot turn reasoning off, and with it on they reject any
+        // temperature but the default.
+        if ["gpt-6.1-sol", "gpt-6-astra"].contains(cleanModel) {
+            return ModelConfig(
+                maxCompletionTokens: nil,
+                reasoningEffort: "low",
+                includeReasoning: nil,
+                shouldStripThinkTags: false,
+                omitsTemperature: true
+            )
+        }
+        // Other OpenAI reasoning models only accept temperature 0 with reasoning off.
         if cleanModel.hasPrefix("gpt-6") || ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"].contains(cleanModel) {
             return ModelConfig(
                 maxCompletionTokens: nil,
