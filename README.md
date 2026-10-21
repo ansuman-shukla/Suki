@@ -1,43 +1,46 @@
-<p align="center">
-  <img src="Resources/AppIcon-Source.png" width="128" height="128" alt="Suki icon">
-</p>
-
-<h1 align="center">Suki</h1>
-
-<h3 align="center">Talk. Suki types. In any app on your Mac.</h3>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/hero-dark.svg">
+  <img src="docs/assets/readme/hero-light.svg" width="100%" alt="Talk. Suki types. Dictation for every app on your Mac. Free, private, and under 10MB.">
+</picture>
 
 <p align="center">
-  <a href="https://github.com/ansuman-shukla/Suki/releases/latest"><b>⬇ Download for Mac</b></a><br>
-  <sub>Free · Open source · Under 10MB</sub>
+  <a href="https://github.com/ansuman-shukla/Suki/releases/latest">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/download-dark.svg">
+      <img src="docs/assets/readme/download-light.svg" width="280" alt="Download Suki for Mac">
+    </picture>
+  </a>
+  <br>
+  <sub>Free · Open source · macOS 13+ · Apple Silicon and Intel</sub>
 </p>
 
 https://github.com/user-attachments/assets/b22efd06-0946-4ac7-b02e-1bec8603acff
 
-## Why Suki
+<br>
 
-- **Tiny.** 20x smaller than Wispr Flow.
-- **Free.** No subscription, no word limits.
-- **Private.** No account, no Suki server.
-- **Any AI.** OpenAI, Groq, Gemini, Claude, or local models.
-- **Knows your words.** Custom dictionary and snippets.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/features-dark.svg">
+  <img src="docs/assets/readme/features-light.svg" width="100%" alt="Why Suki: tiny (about 20x smaller than Wispr Flow), free with no word limits, private with no account or Suki server, works with OpenAI, Groq, Gemini, Claude and more, runs on local models, and has a custom dictionary and snippets.">
+</picture>
 
-## Get Started
+<br><br>
 
-1. Download Suki and drag it to Applications.
-2. First launch: **System Settings → Privacy & Security → Open Anyway**.
-3. Paste a free [Groq key](https://console.groq.com/keys).
-4. Hold `Fn` and talk.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/steps-dark.svg">
+  <img src="docs/assets/readme/steps-light.svg" width="100%" alt="Get started: 1. Download and drag to Applications. 2. Click Open Anyway in Privacy and Security. 3. Paste a free Groq key. 4. Hold fn and talk.">
+</picture>
 
-## Suki vs Wispr Flow
+<p align="center"><a href="https://console.groq.com/keys">Get a free Groq key →</a></p>
 
-|                    | Suki  | Wispr Flow |
-| ------------------ | ----- | ---------- |
-| Unlimited use      | Free  | $15/month  |
-| Size               | 25MB  | 500MB      |
-| Pick your AI model | ✓     | ✗          |
-| Local models       | ✓     | ✗          |
-| Open source        | ✓     | ✗          |
+<br>
 
----
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/compare-dark.svg">
+  <img src="docs/assets/readme/compare-light.svg" width="100%" alt="Suki vs Wispr Flow: unlimited use is free on Suki and $15 a month on Wispr Flow. Suki is 25MB, Wispr Flow is 500MB. Only Suki lets you pick your AI model, use local models, and is open source.">
+</picture>
 
-[Advanced setup, privacy & FAQ](docs/advanced.md) · [Contributing](CONTRIBUTING.md) · MIT License
+<br><br>
+
+<p align="center">
+  <a href="docs/advanced.md">Advanced setup, privacy &amp; FAQ</a> · <a href="CONTRIBUTING.md">Contributing</a> · MIT License
+</p>
