@@ -56,6 +56,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/TranscriptionProvider.swift \
 	Sources/TranscriptionService.swift \
 	Sources/UpdateManager.swift \
+	Sources/UpdateSignatureVerifier.swift \
 	Sources/VocabularyList.swift \
 	Sources/XAITranscriptionService.swift \
 	Sources/WaveformLayout.swift \
