@@ -7,6 +7,7 @@ enum ModelConfigurationTests {
         testModelListsAreConsistent()
         testThinkTagStripping()
         testGroqSelectionMigration()
+        testProviderRequestOptions()
     }
 
     private static func testProviderlessAliasesMatchCanonicalModels() {
@@ -97,5 +98,30 @@ enum ModelConfigurationTests {
         TestSupport.expectEqual(aliasConfig.reasoningEffort, canonicalConfig.reasoningEffort)
         TestSupport.expectEqual(aliasConfig.includeReasoning, canonicalConfig.includeReasoning)
         TestSupport.expectEqual(aliasConfig.shouldStripThinkTags, canonicalConfig.shouldStripThinkTags)
+    }
+
+    private static func testProviderRequestOptions() {
+        // Claude 5.x answers 400 "temperature is deprecated" with no param name,
+        // which the transport retry cannot recognize.
+        for model in ["claude-haiku-5-5", " Claude-Sonnet-5-5 ", "anthropic/claude-opus-5-5"] {
+            let options = ModelConfiguration.nonContentRequestOptions(model: model, temperature: 0)
+            TestSupport.expect(options["temperature"] == nil, "\(model) must not receive temperature")
+            TestSupport.expectEqual(options["model"] as? String, model)
+        }
+        let luna = ModelConfiguration.nonContentRequestOptions(model: "gpt-6-luna", temperature: 0)
+        TestSupport.expectEqual(luna["temperature"] as? Double, 0)
+        TestSupport.expectEqual(luna["reasoning_effort"] as? String, "none")
+        TestSupport.expectEqual(ModelConfiguration.config(for: "gpt-6.1-sol").reasoningEffort, "none")
+        TestSupport.expectEqual(ModelConfiguration.config(for: "gpt-5.4-mini").reasoningEffort, "none")
+        TestSupport.expectEqual(ModelConfiguration.config(for: "grok-4.7").reasoningEffort, "low")
+        // Gemini's compatibility layer rejects reasoning_effort "none".
+        let gemini = ModelConfiguration.nonContentRequestOptions(model: "gemini-3.5-flash-lite", temperature: 0)
+        TestSupport.expect(gemini["reasoning_effort"] == nil, "Gemini gets no reasoning effort")
+        TestSupport.expectEqual(gemini["temperature"] as? Double, 0)
+        TestSupport.expectEqual(AppContextService.inferenceRequestOptions(for: "gemini-3.5-flash-lite")["temperature"] as? Double, 0.2)
+        TestSupport.expect(
+            AppContextService.inferenceRequestOptions(for: "claude-haiku-5-5")["temperature"] == nil,
+            "Context inference must not send temperature to Claude"
+        )
     }
 }

@@ -5,6 +5,8 @@ public struct ModelConfig {
     public let reasoningEffort: String?
     public let includeReasoning: Bool?
     public let shouldStripThinkTags: Bool
+    /// Claude models reject `temperature` (400) instead of ignoring it.
+    public var omitsTemperature = false
 }
 
 public struct ModelConfiguration {
@@ -15,8 +17,11 @@ public struct ModelConfiguration {
         defaultReasoningEffort: String? = nil,
         defaultMaxCompletionTokens: Int? = nil
     ) -> [String: Any] {
-        var options: [String: Any] = ["model": model, "temperature": temperature]
+        var options: [String: Any] = ["model": model]
         let config = config(for: model)
+        if !config.omitsTemperature {
+            options["temperature"] = temperature
+        }
         if let maxTokens = config.maxCompletionTokens {
             options["max_completion_tokens"] = maxTokens
         } else if model == defaultModel, let defaultMaxCompletionTokens {
@@ -201,6 +206,33 @@ public struct ModelConfiguration {
             )
         }
         
+        if cleanModel.contains("claude") {
+            return ModelConfig(
+                maxCompletionTokens: nil,
+                reasoningEffort: nil,
+                includeReasoning: nil,
+                shouldStripThinkTags: false,
+                omitsTemperature: true
+            )
+        }
+        // OpenAI reasoning models only accept temperature 0 with reasoning off.
+        if cleanModel.hasPrefix("gpt-6") || ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"].contains(cleanModel) {
+            return ModelConfig(
+                maxCompletionTokens: nil,
+                reasoningEffort: "none",
+                includeReasoning: nil,
+                shouldStripThinkTags: false
+            )
+        }
+        if cleanModel == "grok-4.7" {
+            return ModelConfig(
+                maxCompletionTokens: nil,
+                reasoningEffort: "low",
+                includeReasoning: nil,
+                shouldStripThinkTags: false
+            )
+        }
+
         // Generic fallback for any model not explicitly listed above
         return ModelConfig(
             maxCompletionTokens: nil,
