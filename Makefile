@@ -40,6 +40,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/MeetingTranscriptionPipeline.swift \
 	Sources/ModelConfiguration.swift \
 	Sources/ModifierKeyEventState.swift \
+	Sources/PermissionRepair.swift \
 	Sources/PipelineHistoryItem.swift \
 	Sources/PostProcessingService.swift \
 	Sources/RealtimeTranscriptionService.swift \
