@@ -30,6 +30,7 @@ struct SukiTests {
         await LLMProviderTests.run()
         RealtimeTranscriptionServiceTests.run()
         GeminiLiveTranscriptionServiceTests.run()
+        StreamingSTTSessionTests.run()
         LiveTypingCoreTests.run()
         MeetingTranscriptCoreTests.run()
         MeetingStoreTests.run()

@@ -3,6 +3,8 @@ import Foundation
 enum LiveTranscriptionProvider: String, CaseIterable, Identifiable {
     case openAI = "openai"
     case gemini = "gemini"
+    case xAI = "xai"
+    case deepgram
     case custom = "custom"
 
     static let openAIBaseURL = "https://api.openai.com/v1"
@@ -13,6 +15,8 @@ enum LiveTranscriptionProvider: String, CaseIterable, Identifiable {
         switch self {
         case .openAI: return "OpenAI"
         case .gemini: return "Gemini"
+        case .xAI: return "xAI"
+        case .deepgram: return "Deepgram"
         case .custom: return "Custom"
         }
     }
@@ -22,6 +26,8 @@ enum LiveTranscriptionProvider: String, CaseIterable, Identifiable {
         switch self {
         case .openAI: return "gpt-live-transcribe"
         case .gemini: return "gemini-3.5-transcribe-live"
+        case .xAI: return "grok-voice-transcribe-2.0"
+        case .deepgram: return "nova-3"
         case .custom: return ""
         }
     }
@@ -30,17 +36,15 @@ enum LiveTranscriptionProvider: String, CaseIterable, Identifiable {
         switch self {
         case .openAI: return ["gpt-live-transcribe", "gpt-transcribe", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"]
         case .gemini: return ["gemini-3.5-transcribe-live"]
+        case .xAI: return ["grok-voice-transcribe-2.0"]
+        case .deepgram: return ["nova-3", "nova-2"]
         case .custom: return []
         }
     }
 
-    /// Custom reuses the API Key settings endpoint instead of a provider key.
+    /// Custom uses the custom transcription endpoint instead of a provider key.
     var credential: APIProvider? {
-        switch self {
-        case .openAI: return .openAI
-        case .gemini: return .gemini
-        case .custom: return nil
-        }
+        self == .custom ? nil : APIProvider(rawValue: rawValue)
     }
 
     /// Users who enabled realtime streaming before providers existed keep the
@@ -75,7 +79,7 @@ struct LiveTranscriptionConfiguration: Equatable {
         let baseURL: String
         let apiKey: String
         switch provider {
-        case .openAI, .gemini:
+        case .openAI, .gemini, .xAI, .deepgram:
             apiKey = providerAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !apiKey.isEmpty else { return nil }
             baseURL = provider == .openAI ? LiveTranscriptionProvider.openAIBaseURL : ""

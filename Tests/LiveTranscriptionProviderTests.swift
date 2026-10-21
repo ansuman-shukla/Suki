@@ -106,6 +106,6 @@ enum LiveTranscriptionProviderTests {
             )
             TestSupport.expectEqual(provider.credential?.rawValue, provider.rawValue)
         }
-        TestSupport.expect(LiveTranscriptionProvider.custom.credential == nil, "Custom reuses transcription key")
+        TestSupport.expect(LiveTranscriptionProvider.custom.credential == nil, "Custom uses the custom transcription endpoint")
     }
 }
