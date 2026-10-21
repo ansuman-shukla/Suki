@@ -19,25 +19,51 @@ struct MeetingsContent: View {
     var onStop: () -> Void = {}
     var onCopy: (MeetingRecord) -> Void = { _ in }
     var onDelete: (MeetingRecord) -> Void = { _ in }
+    @State var openMeetingID: UUID?
+
+    private var openMeeting: MeetingRecord? { screen.meetings.first { $0.id == openMeetingID } }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 32) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Meetings")
-                        .font(SukiFont.display(34))
-                    Text("Record a call. Suki writes down what you and they said.")
-                        .font(SukiFont.ui(14))
-                        .foregroundStyle(Theme.textSecondary)
-                }
+        Group {
+            if let meeting = openMeeting {
+                MeetingDetailContent(
+                    meeting: meeting,
+                    onBack: { openMeetingID = nil },
+                    onCopy: { onCopy(meeting) },
+                    onDelete: { onDelete(meeting) }
+                )
+                .transition(.opacity)
+            } else {
+                meetingList
+                    .transition(.opacity)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let toast = screen.toast {
+                MeetingToast(text: toast)
+                    .padding(.bottom, 24)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.suki, value: screen.phase)
+        .animation(.suki, value: openMeetingID)
+        .animation(.sukiPop, value: screen.toast)
+    }
 
-                if screen.phase == .idle || screen.phase == .starting {
-                    VStack(alignment: .leading, spacing: 10) {
-                        RecordMeetingButton(
-                            isStarting: screen.phase == .starting,
-                            isEnabled: screen.unavailableReason == nil,
-                            action: onRecord
-                        )
+    private var meetingList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HubPageHeader(title: "Meetings", subtitle: "Record a call. Suki writes down what you and they said.") {
+                        if screen.phase == .idle || screen.phase == .starting {
+                            RecordMeetingButton(
+                                isStarting: screen.phase == .starting,
+                                isEnabled: screen.unavailableReason == nil,
+                                action: onRecord
+                            )
+                        }
+                    }
+                    if screen.phase == .idle || screen.phase == .starting {
                         if let reason = screen.unavailableReason {
                             Text(reason)
                                 .font(SukiFont.ui(13))
@@ -48,24 +74,22 @@ struct MeetingsContent: View {
                                 .foregroundStyle(Theme.destructive)
                         }
                     }
-                } else {
+                }
+
+                if screen.phase == .recording || screen.phase == .finishing {
                     LiveMeetingCard(screen: screen, onStop: onStop)
                         .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
                 }
 
-                PastMeetingsList(meetings: screen.meetings, onCopy: onCopy, onDelete: onDelete)
+                PastMeetingsList(
+                    meetings: screen.meetings,
+                    onOpen: { openMeetingID = $0.id },
+                    onCopy: onCopy,
+                    onDelete: onDelete
+                )
             }
             .hubPageLayout()
         }
-        .overlay(alignment: .bottom) {
-            if let toast = screen.toast {
-                MeetingToast(text: toast)
-                    .padding(.bottom, 24)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.suki, value: screen.phase)
-        .animation(.sukiPop, value: screen.toast)
     }
 }
 
@@ -76,20 +100,14 @@ private struct RecordMeetingButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Circle()
                     .fill(Theme.destructive)
-                    .frame(width: 10, height: 10)
+                    .frame(width: 8, height: 8)
                 Text(isStarting ? "Starting…" : "Record meeting")
-                    .font(SukiFont.ui(16, .semibold))
             }
-            .foregroundStyle(Theme.primaryButtonText)
-            .padding(.horizontal, 28)
-            .frame(height: 52)
-            .background(Capsule().fill(Theme.primaryButton))
-            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HubButtonStyle(isPrimary: false))
         .disabled(isStarting || !isEnabled)
         .opacity(isEnabled ? 1 : 0.4)
     }
@@ -128,7 +146,7 @@ private struct LiveMeetingCard: View {
                 .frame(height: 1)
 
             if lines.isEmpty {
-                Text(isFinishing ? "Writing up the last few seconds…" : "Listening. Lines show up here every 20 seconds or so.")
+                Text(isFinishing ? "Writing up the last few seconds…" : "Listening. Lines show up here every \(Int(MeetingTranscriptCore.targetChunkSeconds)) seconds or so.")
                     .font(SukiFont.ui(14))
                     .foregroundStyle(Theme.textTertiary)
             } else {
@@ -198,7 +216,7 @@ private struct SpeakerLabel: View {
     let speaker: MeetingSpeaker
 
     var body: some View {
-        Text(speaker.label)
+        Text(speaker.displayName)
             .font(SukiFont.ui(11, .semibold))
             .tracking(0.8)
             .textCase(.uppercase)
@@ -225,109 +243,89 @@ private struct MeetingLine: View {
 
 private struct PastMeetingsList: View {
     let meetings: [MeetingRecord]
+    let onOpen: (MeetingRecord) -> Void
     let onCopy: (MeetingRecord) -> Void
     let onDelete: (MeetingRecord) -> Void
-    @State private var expandedID: UUID?
 
     var body: some View {
-        if meetings.isEmpty {
-            Text("Your meetings will show up here.")
-                .font(SukiFont.ui(14))
-                .foregroundStyle(Theme.textTertiary)
-        } else {
-            VStack(alignment: .leading, spacing: 24) {
-                ForEach(MeetingTranscriptCore.groupedByDay(meetings), id: \.day) { group in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(MeetingTranscriptCore.dayLabel(for: group.day, now: Date()))
-                            .sectionLabelStyle()
-                            .padding(.horizontal, 12)
-                        ForEach(group.meetings) { meeting in
-                            PastMeetingRow(
-                                meeting: meeting,
-                                isExpanded: expandedID == meeting.id,
-                                onToggle: { expandedID = expandedID == meeting.id ? nil : meeting.id },
-                                onCopy: { onCopy(meeting) },
-                                onDelete: { onDelete(meeting) }
-                            )
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 0) {
+                MeetingTab(title: "Past notes")
+                Rectangle()
+                    .fill(Theme.divider)
+                    .frame(height: 1)
+            }
+
+            if meetings.isEmpty {
+                HubEmptyState(
+                    title: "No meetings yet",
+                    message: "Press Record meeting when a call starts. Your transcripts show up here."
+                )
+            } else {
+                VStack(alignment: .leading, spacing: 22) {
+                    ForEach(MeetingTranscriptCore.groupedByDay(meetings), id: \.day) { group in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(MeetingTranscriptCore.dayLabel(for: group.day, now: Date()))
+                                .sectionLabelStyle()
+                                .padding(.horizontal, 8)
+                                .padding(.bottom, 6)
+                            ForEach(group.meetings) { meeting in
+                                PastMeetingRow(
+                                    meeting: meeting,
+                                    onOpen: { onOpen(meeting) },
+                                    onCopy: { onCopy(meeting) },
+                                    onDelete: { onDelete(meeting) }
+                                )
+                            }
                         }
                     }
                 }
+                .animation(.suki, value: meetings.map(\.id))
             }
-            .animation(.suki, value: expandedID)
-            .animation(.suki, value: meetings.map(\.id))
         }
     }
 }
 
 private struct PastMeetingRow: View {
     let meeting: MeetingRecord
-    let isExpanded: Bool
-    let onToggle: () -> Void
+    let onOpen: () -> Void
     let onCopy: () -> Void
     let onDelete: () -> Void
     @State private var isHovered = false
 
-    private var lines: [MeetingSegment] { MeetingTranscriptCore.merged(meeting.segments) }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(meeting.title)
-                        .font(SukiFont.ui(14, .medium))
-                        .foregroundStyle(Theme.textPrimary)
-                    Text(MeetingTranscriptCore.clock(meeting.duration))
-                        .font(SukiFont.ui(12))
-                        .foregroundStyle(Theme.textSecondary)
-                    if !isExpanded, let first = lines.first {
-                        Text("\(first.speaker.label): \(first.text)")
-                            .font(SukiFont.ui(13))
-                            .foregroundStyle(Theme.textTertiary)
-                            .lineLimit(1)
-                    }
-                }
-                Spacer()
-                HStack(spacing: 4) {
-                    RowIconButton(systemName: "doc.on.doc", help: "Copy transcript", action: onCopy)
-                    RowIconButton(systemName: "trash", help: "Delete meeting", action: onDelete)
-                }
-                .opacity(isHovered || isExpanded ? 1 : 0)
+        HStack(spacing: 12) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.textSecondary)
+                .frame(width: 32, height: 32)
+                .background(RoundedRectangle(cornerRadius: Radius.sm, style: .continuous).fill(Theme.card))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(meeting.title)
+                    .font(SukiFont.ui(14, .medium))
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                Text(MeetingTranscriptCore.timeLabel(for: meeting.date) + " · " + MeetingTranscriptCore.clock(meeting.duration))
+                    .font(SukiFont.ui(12))
+                    .foregroundStyle(Theme.textSecondary)
             }
-
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(lines) { MeetingLine(segment: $0) }
-                }
-                .transition(.opacity)
+            Spacer(minLength: 0)
+            HStack(spacing: 2) {
+                HubIconButton(systemName: "doc.on.doc", help: "Copy transcript", action: onCopy)
+                HubIconButton(systemName: "trash", help: "Delete meeting", isDestructive: true, action: onDelete)
             }
+            .opacity(isHovered ? 1 : 0)
+            .allowsHitTesting(isHovered)
         }
-        .padding(12)
+        .padding(8)
         .background(
             RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
-                .fill(isHovered || isExpanded ? Theme.rowHover : Color.clear)
+                .fill(isHovered ? Theme.rowHover : Color.clear)
         )
         .contentShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
         .onHover { isHovered = $0 }
-        .onTapGesture(perform: onToggle)
+        .onTapGesture(perform: onOpen)
         .animation(.suki, value: isHovered)
-    }
-}
-
-private struct RowIconButton: View {
-    let systemName: String
-    let help: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.textSecondary)
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(help)
     }
 }
 

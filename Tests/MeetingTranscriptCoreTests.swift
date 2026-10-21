@@ -31,6 +31,11 @@ enum MeetingTranscriptCoreTests {
         mergeOrdersByStartAndFoldsSameSpeaker()
         mergeDropsBlankTextAndKeepsTieOrder()
         clipboardTextFormatsSpeakersAndOptionalTimestamps()
+        turnsSplitSentencesAndFoldSameSpeaker()
+        turnsDropBlankTextAndKeepFailedChunkAsOneLine()
+        speakerDisplayNamesDifferFromCopiedLabels()
+        transcriptSummaryCountsSpeakersWithText()
+        timeLabelUsesLowercaseMeridiem()
         clockFormatsMinutesAndHours()
         defaultTitleUsesShortDateAndLowercaseMeridiem()
         dayLabelsUseTodayYesterdayThenWeekday()
@@ -112,6 +117,65 @@ enum MeetingTranscriptCoreTests {
         TestSupport.expectEqual(MeetingTranscriptCore.clipboardText([]), "")
         let record = MeetingRecord(title: "t", date: Date(timeIntervalSince1970: 0), duration: 1, segments: segments)
         TestSupport.expectEqual(record.transcript, "Me: Can you hear me? Okay.\nThem: Next slide.")
+    }
+
+    private static func turnsSplitSentencesAndFoldSameSpeaker() {
+        let opening = segment(.me, 0, " Hi. What is going on here? ")
+        let turns = MeetingTranscriptCore.turns([
+            segment(.them, 30, "Sounds good. See you Friday."),
+            opening,
+            segment(.me, 12, "Hey, hey."),
+            segment(.me, 50, "Bye!")
+        ])
+        TestSupport.expectEqual(turns.map(\.speaker), [.me, .them, .me])
+        TestSupport.expectEqual(turns.map(\.sentences), [
+            ["Hi.", "What is going on here?", "Hey, hey."],
+            ["Sounds good.", "See you Friday."],
+            ["Bye!"]
+        ])
+        TestSupport.expectEqual(turns.map(\.start), [0, 30, 50])
+        TestSupport.expectEqual(turns.first?.id, opening.id)
+    }
+
+    private static func turnsDropBlankTextAndKeepFailedChunkAsOneLine() {
+        let turns = MeetingTranscriptCore.turns([
+            segment(.them, 0, "  \n"),
+            segment(.me, 1, MeetingTranscriptCore.failedChunkText),
+            segment(.them, 2, " "),
+            segment(.me, 3, "Okay.")
+        ])
+        TestSupport.expectEqual(turns.map(\.sentences), [[MeetingTranscriptCore.failedChunkText, "Okay."]])
+        TestSupport.expectEqual(MeetingTranscriptCore.turns([]), [])
+        TestSupport.expectEqual(MeetingTranscriptCore.sentences(in: "No ending punctuation"), ["No ending punctuation"])
+    }
+
+    private static func speakerDisplayNamesDifferFromCopiedLabels() {
+        TestSupport.expectEqual(MeetingSpeaker.me.displayName, "You")
+        TestSupport.expectEqual(MeetingSpeaker.them.displayName, "Them")
+        TestSupport.expectEqual(MeetingSpeaker.me.label, "Me")
+    }
+
+    private static func transcriptSummaryCountsSpeakersWithText() {
+        TestSupport.expectEqual(
+            MeetingTranscriptCore.transcriptSummary([segment(.me, 0, "Hi."), segment(.them, 2, "  ")], duration: 98),
+            "1 speaker · 01:38"
+        )
+        TestSupport.expectEqual(
+            MeetingTranscriptCore.transcriptSummary([segment(.me, 0, "Hi."), segment(.them, 2, "Hey.")], duration: 3723),
+            "2 speakers · 1:02:03"
+        )
+    }
+
+    private static func timeLabelUsesLowercaseMeridiem() {
+        let locale = Locale(identifier: "en_US")
+        TestSupport.expectEqual(
+            MeetingTranscriptCore.timeLabel(for: date(21, hour: 4, minute: 28), locale: locale, timeZone: calendar.timeZone),
+            "4:28am"
+        )
+        TestSupport.expectEqual(
+            MeetingTranscriptCore.timeLabel(for: date(21, hour: 15, minute: 4), locale: locale, timeZone: calendar.timeZone),
+            "3:04pm"
+        )
     }
 
     private static func clockFormatsMinutesAndHours() {
@@ -198,22 +262,22 @@ enum MeetingTranscriptCoreTests {
 
     private static func chunkBufferWaitsForTargetThenQuietMoment() {
         var buffer = MeetingChunkBuffer(speaker: .me)
-        TestSupport.expect(buffer.append(tone(seconds: 19.9), arrival: 19.9) == nil, "Below target keeps buffering")
-        TestSupport.expect(buffer.append(tone(seconds: 0.5), arrival: 20.4) == nil, "Past target but still talking keeps buffering")
-        let chunk = buffer.append(silence(seconds: 0.1), arrival: 20.5)
+        TestSupport.expect(buffer.append(tone(seconds: 9.9), arrival: 9.9) == nil, "Below target keeps buffering")
+        TestSupport.expect(buffer.append(tone(seconds: 0.5), arrival: 10.4) == nil, "Past target but still talking keeps buffering")
+        let chunk = buffer.append(silence(seconds: 0.1), arrival: 10.5)
         TestSupport.expectEqual(chunk?.speaker, .me)
-        TestSupport.expectEqual(chunk?.samples.count, Int(20.5 * Double(rate)))
+        TestSupport.expectEqual(chunk?.samples.count, Int(10.5 * Double(rate)))
         TestSupport.expectEqual(chunk?.start, 0)
         TestSupport.expectEqual(buffer.pendingSeconds, 0)
-        TestSupport.expect(buffer.append([], arrival: 21) == nil, "Empty input is ignored")
+        TestSupport.expect(buffer.append([], arrival: 11) == nil, "Empty input is ignored")
     }
 
     private static func chunkBufferCutsAtMaxEvenWhileTalking() {
         var buffer = MeetingChunkBuffer(speaker: .them)
-        TestSupport.expect(buffer.append(tone(seconds: 24.9), arrival: 24.9) == nil, "Talking under max keeps buffering")
-        let chunk = buffer.append(tone(seconds: 0.1), arrival: 25)
-        TestSupport.expectEqual(chunk?.samples.count, 25 * rate)
-        TestSupport.expectApproximatelyEqual(chunk?.duration ?? 0, 25)
+        TestSupport.expect(buffer.append(tone(seconds: 14.9), arrival: 14.9) == nil, "Talking under max keeps buffering")
+        let chunk = buffer.append(tone(seconds: 0.1), arrival: 15)
+        TestSupport.expectEqual(chunk?.samples.count, 15 * rate)
+        TestSupport.expectApproximatelyEqual(chunk?.duration ?? 0, 15)
         TestSupport.expectEqual(chunk?.speaker, .them)
     }
 
