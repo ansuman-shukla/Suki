@@ -21,7 +21,7 @@ struct TranscriptionSettingsView: View {
 
             if let credential = provider.credential {
                 ProviderAPIKeyField(provider: credential) { key in
-                    await Self.validate(key, for: credential)
+                    await APIKeyValidator.validate(key, for: credential)
                 }
             } else {
                 Text("Uses the API key and endpoint from API Key settings (Groq by default).")
@@ -67,18 +67,5 @@ struct TranscriptionSettingsView: View {
         modelDraft = trimmed
         guard appState.transcriptionModel != trimmed else { return }
         appState.transcriptionModel = trimmed
-    }
-
-    private static func validate(_ key: String, for provider: CloudSpeechProvider) async -> Result<Void, Error> {
-        let valid: Bool
-        switch provider {
-        case .openAI:
-            valid = await TranscriptionService.validateAPIKey(key, baseURL: TranscriptionProvider.openAIBaseURL)
-        case .gemini:
-            valid = await GeminiTranscriptionService.validateAPIKey(key)
-        }
-        return valid
-            ? .success(())
-            : .failure(TranscriptionError.submissionFailed("\(provider.displayName) rejected this API key."))
     }
 }

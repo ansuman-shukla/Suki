@@ -7,7 +7,6 @@ enum TranscriptionProviderTests {
         testFactory()
         testGeminiRequestBody()
         testGeminiParseTranscript()
-        await testGeminiKeyValidation()
     }
 
     private static func testInitialSelection() {
@@ -83,21 +82,5 @@ enum TranscriptionProviderTests {
         let empty = #"{"candidates":[{"content":{"parts":[]}}]}"#
         TestSupport.expectEqual(try? GeminiTranscriptionService.parseTranscript(Data(empty.utf8)), "")
         TestSupport.expect((try? GeminiTranscriptionService.parseTranscript(Data(#"{"error":{}}"#.utf8))) == nil, "Responses without candidates are errors")
-    }
-
-    private static func testGeminiKeyValidation() async {
-        func transport(status: Int) -> @Sendable (URLRequest) async throws -> (Data, URLResponse) {
-            { request in
-                TestSupport.expectEqual(request.value(forHTTPHeaderField: "x-goog-api-key"), "synthetic-key")
-                TestSupport.expectEqual(request.url?.absoluteString, "https://generativelanguage.googleapis.com/v1beta/models")
-                return (Data(), HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!)
-            }
-        }
-        let valid = await GeminiTranscriptionService.validateAPIKey(" synthetic-key ", transport: transport(status: 200))
-        TestSupport.expect(valid, "200 from models list means the key works")
-        let rejected = await GeminiTranscriptionService.validateAPIKey("synthetic-key", transport: transport(status: 400))
-        TestSupport.expect(!rejected, "Non-200 means the key is rejected")
-        let blank = await GeminiTranscriptionService.validateAPIKey("  ", transport: transport(status: 200))
-        TestSupport.expect(!blank, "Blank keys are never sent")
     }
 }

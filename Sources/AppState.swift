@@ -529,7 +529,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     }
 
     /// OpenAI and Gemini keys, shared by upload and live transcription.
-    @Published private(set) var providerAPIKeys: [CloudSpeechProvider: String]
+    @Published private(set) var providerAPIKeys: [APIProvider: String]
 
     @Published var transcriptionProvider: TranscriptionProvider {
         didSet {
@@ -765,8 +765,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
             storedValue: storedLiveProvider,
             realtimeStreamingWasEnabled: realtimeStreamingEnabled
         )
-        var providerAPIKeys: [CloudSpeechProvider: String] = [:]
-        for provider in CloudSpeechProvider.allCases {
+        var providerAPIKeys: [APIProvider: String] = [:]
+        for provider in APIProvider.allCases {
             providerAPIKeys[provider] = Self.loadStoredAPIKey(account: provider.apiKeyStorageAccount)
         }
         let transcriptionProvider = TranscriptionProvider.initialSelection(
@@ -1200,7 +1200,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return normalized.isEmpty ? nil : normalized
     }
 
-    func setProviderAPIKey(_ key: String, for provider: CloudSpeechProvider) {
+    func setProviderAPIKey(_ key: String, for provider: APIProvider) {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         persistOptionalAPIValue(trimmed, account: provider.apiKeyStorageAccount)
         providerAPIKeys[provider] = trimmed

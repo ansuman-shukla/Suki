@@ -79,22 +79,6 @@ final class GeminiTranscriptionService: SpeechToTextService {
         .joined()
         .trimmingCharacters(in: .whitespacesAndNewlines)
     }
-
-    /// Listing models is free and fails for an invalid key.
-    static func validateAPIKey(
-        _ key: String,
-        transport: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
-            try await LLMAPITransport.data(for: request)
-        }
-    ) async -> Bool {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        var request = URLRequest(url: apiBaseURL.appendingPathComponent("models"))
-        request.timeoutInterval = 10
-        request.setValue(trimmed, forHTTPHeaderField: "x-goog-api-key")
-        guard let (_, response) = try? await transport(request) else { return false }
-        return (response as? HTTPURLResponse)?.statusCode == 200
-    }
 }
 
 enum SpeechToTextServiceFactory {

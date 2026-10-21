@@ -1,26 +1,5 @@
 import Foundation
 
-/// Cloud speech providers whose API key is shared by upload and live
-/// transcription.
-enum CloudSpeechProvider: String, CaseIterable {
-    case openAI = "openai"
-    case gemini
-
-    var displayName: String {
-        switch self {
-        case .openAI: return "OpenAI"
-        case .gemini: return "Gemini"
-        }
-    }
-
-    var apiKeyStorageAccount: String {
-        switch self {
-        case .openAI: return "openai_api_key"
-        case .gemini: return "gemini_api_key"
-        }
-    }
-}
-
 /// Where recorded audio is uploaded for transcription when live
 /// transcription is off or fails.
 enum TranscriptionProvider: String, CaseIterable, Identifiable {
@@ -42,7 +21,7 @@ enum TranscriptionProvider: String, CaseIterable, Identifiable {
         }
     }
 
-    var credential: CloudSpeechProvider? {
+    var credential: APIProvider? {
         switch self {
         case .standard: return nil
         case .openAI: return .openAI

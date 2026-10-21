@@ -107,9 +107,5 @@ enum LiveTranscriptionProviderTests {
             TestSupport.expectEqual(provider.credential?.rawValue, provider.rawValue)
         }
         TestSupport.expect(LiveTranscriptionProvider.custom.credential == nil, "Custom reuses transcription key")
-        TestSupport.expect(
-            Set(CloudSpeechProvider.allCases.map(\.apiKeyStorageAccount)).count == 2,
-            "Provider keys use distinct storage accounts"
-        )
     }
 }

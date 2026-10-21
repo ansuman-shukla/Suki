@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Edits an OpenAI or Gemini key shared by upload and live transcription.
+/// Edits a provider key shared by every feature that uses that provider.
 /// Like the main API key, a key is saved only after the provider accepts it.
 struct ProviderAPIKeyField: View {
     private enum TestState: Equatable {
@@ -11,7 +11,7 @@ struct ProviderAPIKeyField: View {
     }
 
     @EnvironmentObject var appState: AppState
-    let provider: CloudSpeechProvider
+    let provider: APIProvider
     let test: (String) async -> Result<Void, Error>
 
     @State private var draft = ""

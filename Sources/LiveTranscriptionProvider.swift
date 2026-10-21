@@ -35,7 +35,7 @@ enum LiveTranscriptionProvider: String, CaseIterable, Identifiable {
     }
 
     /// Custom reuses the API Key settings endpoint instead of a provider key.
-    var credential: CloudSpeechProvider? {
+    var credential: APIProvider? {
         switch self {
         case .openAI: return .openAI
         case .gemini: return .gemini
