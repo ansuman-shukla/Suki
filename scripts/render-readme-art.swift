@@ -293,6 +293,10 @@ func comparison(_ t: Theme) -> String {
                body)
 }
 
+func demoTitle(_ t: Theme) -> String {
+    svg(width: 1600, height: 84, title: "See Suki in action", sectionTitle(t, "See Suki in action"))
+}
+
 func downloadButton(_ t: Theme) -> String {
     let body = """
     <rect width="600" height="120" rx="60" fill="\(t.button)"/>
@@ -304,7 +308,7 @@ func downloadButton(_ t: Theme) -> String {
 
 try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
 let cards: [(String, (Theme) -> String)] = [
-    ("hero", hero), ("features", featureGrid), ("steps", steps), ("compare", comparison), ("download", downloadButton),
+    ("hero", hero), ("features", featureGrid), ("steps", steps), ("compare", comparison), ("download", downloadButton), ("demo", demoTitle),
 ]
 for (name, render) in cards {
     for theme in [light, dark] {

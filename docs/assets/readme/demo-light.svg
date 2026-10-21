@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1600" height="84" viewBox="0 0 1600 84" role="img" aria-label="See Suki in action">
+<title>See Suki in action</title>
+<style>
+.serif{font-family:'New York','Iowan Old Style',ui-serif,Georgia,serif}
+.sans{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Helvetica,Arial,sans-serif}
+.mono{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace}
+</style>
+<text x="4" y="64" class="serif" font-size="60" font-weight="600" fill="#1A1A1A">See Suki in action</text>
+</svg>
