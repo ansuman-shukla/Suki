@@ -23,6 +23,10 @@ First public release of Suki, a menu-bar dictation app for macOS that uses your 
 - Meeting notes: record a call with your mic and the Mac's audio, get a "You" / "Them" transcript, copy it, and keep past meetings as notes you can rename.
 - Suki notices when a call app starts using the microphone and offers to take notes (can be turned off in Settings).
 - New app icon, original dictation sounds, and light and dark themes.
+- A signed universal DMG for Apple Silicon and Intel Macs. Suki is not notarized by Apple, so the first launch needs a one-time **Open Anyway** in System Settings > Privacy & Security; updates after that install from inside the app.
+
+### Improved
+- In-app updates are installed only when they are signed by the same certificate as your installed copy of Suki, so a tampered or foreign download is refused.
 
 ### Fixed
 - Call transcripts no longer lose your voice when the call app (like the WhatsApp desktop app) takes over the microphone. Suki reconnects the mic and shows a warning if another app still blocks it.
