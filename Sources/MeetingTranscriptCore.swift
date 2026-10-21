@@ -187,6 +187,16 @@ enum MeetingTranscriptCore {
         "Meeting · " + meridiemFormatter("MMM d, h:mma", locale: locale, timeZone: timeZone).string(from: date)
     }
 
+    static let maxTitleLength = 120
+
+    /// The cleaned-up title to save, or nil when the proposal is blank or would not change `current`.
+    static func renamedTitle(_ proposed: String, current: String) -> String? {
+        let title = String(proposed.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxTitleLength))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty, title != current else { return nil }
+        return title
+    }
+
     /// "Today", "Yesterday", or "Monday, Oct 20".
     static func dayLabel(for day: Date, now: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
         if calendar.isDate(day, inSameDayAs: now) { return "Today" }

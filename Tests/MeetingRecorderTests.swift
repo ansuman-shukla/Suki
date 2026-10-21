@@ -102,6 +102,11 @@ enum MeetingRecorderTests {
         await recordingTranscribesCopiesAndSaves()
         await silentMeetingSavesNothing()
         await copyAndDeletePastMeetings()
+        await blankedMicRestartsAndRecovers()
+        await silentSystemAudioNeverRestartsAnything()
+        await renameSavesTrimmedTitleAndKeepsTheRest()
+        await renameIgnoresBlankAndUnchangedTitles()
+        await renameFailureKeepsOldTitle()
         await conversationKeepsSpeakingOrder()
         await quickRepliesStayInterleaved()
     }
@@ -273,5 +278,118 @@ enum MeetingRecorderTests {
         recorder.delete(newer)
         TestSupport.expectEqual(recorder.meetings.map(\.title), ["Older"])
         TestSupport.expectEqual(harness.store.loadAll().map(\.title), ["Older"])
+    }
+
+    @MainActor
+    private static func blankedMicRestartsAndRecovers() async {
+        let harness = Harness()
+        let recorder = harness.recorder
+        await recorder.start()
+        harness.me.emit(MeetingTranscriptCoreTests.silence(seconds: 1.9))
+        await harness.settle()
+        TestSupport.expect(!recorder.micBlocked, "Under two seconds of exact zeros is not a blocked mic")
+        TestSupport.expectEqual(harness.me.startCount, 1)
+
+        harness.me.emit(MeetingTranscriptCoreTests.silence(seconds: 0.1))
+        await harness.settle { recorder.micBlocked }
+        TestSupport.expect(recorder.micBlocked, "Two seconds of exact zeros flags the mic as blocked")
+        TestSupport.expectEqual(harness.me.stopCount, 1)
+        TestSupport.expectEqual(harness.me.startCount, 2)
+        TestSupport.expectEqual(harness.them.startCount, 1)
+
+        harness.me.emit(MeetingTranscriptCoreTests.silence(seconds: 4))
+        await harness.settle { harness.me.startCount == 3 }
+        TestSupport.expectEqual(harness.me.startCount, 3)
+
+        harness.me.emit(MeetingTranscriptCoreTests.tone(seconds: 0.2))
+        await harness.settle { !recorder.micBlocked }
+        TestSupport.expect(!recorder.micBlocked, "Real audio after a restart clears the warning")
+        TestSupport.expectEqual(recorder.phase, .recording)
+
+        harness.me.emit(MeetingTranscriptCoreTests.silence(seconds: 2))
+        await harness.settle { recorder.micBlocked }
+        await recorder.stop()
+        TestSupport.expect(!recorder.micBlocked, "Stopping the meeting clears the warning")
+    }
+
+    @MainActor
+    private static func silentSystemAudioNeverRestartsAnything() async {
+        let harness = Harness()
+        await harness.recorder.start()
+        harness.them.emit(MeetingTranscriptCoreTests.silence(seconds: 6))
+        await harness.settle()
+        TestSupport.expect(!harness.recorder.micBlocked, "Nothing playing on the Mac is normal, not a blocked mic")
+        TestSupport.expectEqual(harness.them.startCount + harness.me.startCount, 2)
+        TestSupport.expectEqual(harness.them.stopCount + harness.me.stopCount, 0)
+    }
+
+    private static func renameFixtures() -> (older: MeetingRecord, newer: MeetingRecord) {
+        let older = MeetingRecord(title: "Older", date: Date(timeIntervalSince1970: 10), duration: 75, segments: [
+            MeetingSegment(speaker: .me, start: 0, text: "Synthetic hello."),
+            MeetingSegment(speaker: .them, start: 12.5, text: "Synthetic reply."),
+        ])
+        let newer = MeetingRecord(title: "Newer", date: Date(timeIntervalSince1970: 20), duration: 60, segments: [
+            MeetingSegment(speaker: .them, start: 0, text: "Synthetic question."),
+        ])
+        return (older, newer)
+    }
+
+    @MainActor
+    private static func renameSavesTrimmedTitleAndKeepsTheRest() async {
+        let harness = Harness()
+        let (older, newer) = renameFixtures()
+        try? harness.store.save(older)
+        try? harness.store.save(newer)
+        let recorder = harness.recorder
+
+        recorder.rename(older, to: "  Design sync \n")
+
+        var expected = older
+        expected.title = "Design sync"
+        TestSupport.expectEqual(recorder.meetings, [newer, expected])
+        TestSupport.expectEqual(MeetingStore(directory: harness.directory).loadAll(), [newer, expected])
+        TestSupport.expect(recorder.errorMessage == nil, "A good rename has no error")
+
+        recorder.rename(older, to: "Design sync v2")
+        TestSupport.expectEqual(recorder.meetings.map(\.title), ["Newer", "Design sync v2"])
+        TestSupport.expectEqual(MeetingStore(directory: harness.directory).loadAll().map(\.title), ["Newer", "Design sync v2"])
+    }
+
+    @MainActor
+    private static func renameIgnoresBlankAndUnchangedTitles() async {
+        let harness = Harness()
+        let (older, newer) = renameFixtures()
+        try? harness.store.save(older)
+        try? harness.store.save(newer)
+        let recorder = harness.recorder
+        let fileURL = harness.store.fileURL(for: older.id)
+        let savedAt = Date(timeIntervalSince1970: 1_000)
+        try? FileManager.default.setAttributes([.modificationDate: savedAt], ofItemAtPath: fileURL.path)
+
+        for blank in ["", "   ", "\n\t ", " Older "] {
+            recorder.rename(older, to: blank)
+        }
+
+        TestSupport.expectEqual(recorder.meetings, [newer, older])
+        TestSupport.expectEqual(MeetingStore(directory: harness.directory).loadAll(), [newer, older])
+        let modified = (try? FileManager.default.attributesOfItem(atPath: fileURL.path))?[.modificationDate] as? Date
+        TestSupport.expectEqual(modified, savedAt)
+        TestSupport.expect(recorder.errorMessage == nil, "Ignored renames show no error")
+    }
+
+    @MainActor
+    private static func renameFailureKeepsOldTitle() async {
+        let harness = Harness()
+        let (older, _) = renameFixtures()
+        try? harness.store.save(older)
+        let recorder = harness.recorder
+        TestSupport.expectEqual(recorder.meetings, [older])
+
+        try? FileManager.default.removeItem(at: harness.directory)
+        FileManager.default.createFile(atPath: harness.directory.path, contents: Data())
+        recorder.rename(older, to: "Unsaved title")
+
+        TestSupport.expectEqual(recorder.meetings, [older])
+        TestSupport.expectEqual(recorder.errorMessage, "Couldn't rename this meeting.")
     }
 }

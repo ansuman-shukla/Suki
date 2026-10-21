@@ -50,17 +50,25 @@ final class MeetingSampleConverter {
     }
 }
 
-/// "Me": the microphone Suki already uses for dictation, captured with AVAudioEngine.
+/// "Me": the microphone, captured with AVAudioEngine in voice processing mode.
+///
+/// Voice processing matters for calls: call apps like WhatsApp put the mic in voice processing mode,
+/// and macOS then hands plain (non voice processing) taps exact digital silence. It also cancels the
+/// call audio coming out of the speakers, which would otherwise be transcribed a second time as "Me".
 final class MeetingMicrophoneSource: MeetingAudioSource {
     let speaker = MeetingSpeaker.me
-    private let engine = AVAudioEngine()
+    private var engine = AVAudioEngine()
+    private var configurationObserver: NSObjectProtocol?
     private let deviceUID: String?
 
     init(deviceUID: String?) {
         self.deviceUID = deviceUID
     }
 
+    /// Builds a fresh engine every time, so a restart also recovers from a wedged audio unit.
     func start(onSamples: @escaping ([Float]) -> Void) throws {
+        let engine = AVAudioEngine()
+        self.engine = engine
         let input = engine.inputNode
         if let deviceUID, var deviceID = Self.deviceID(forUID: deviceUID), let unit = input.audioUnit {
             AudioUnitSetProperty(
@@ -72,24 +80,43 @@ final class MeetingMicrophoneSource: MeetingAudioSource {
                 UInt32(MemoryLayout<AudioDeviceID>.size)
             )
         }
-        let format = input.outputFormat(forBus: 0)
-        guard let converter = MeetingSampleConverter(inputFormat: format) else {
-            throw MeetingRecorderError.audioSetupFailed("no microphone input")
+        do {
+            try input.setVoiceProcessingEnabled(true)
+        } catch {
+            throw MeetingRecorderError.audioSetupFailed("microphone voice processing unavailable")
         }
+        if #available(macOS 14.0, *) {
+            input.voiceProcessingOtherAudioDuckingConfiguration = .init(enableAdvancedDucking: false, duckingLevel: .min)
+        }
+        // Voice processing is a duplex unit: without a rendered mono output path the engine fails to
+        // initialize (-10875), and the input's own multichannel format yields silence.
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: input.outputFormat(forBus: 0).sampleRate, channels: 1),
+              let converter = MeetingSampleConverter(inputFormat: format)
+        else { throw MeetingRecorderError.audioSetupFailed("no microphone input") }
+        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: format)
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
             let samples = converter.convert(buffer)
             if !samples.isEmpty { onSamples(samples) }
+        }
+        // Enabling voice processing reconfigures the device, which can stop the engine right after it starts.
+        configurationObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { [weak engine] _ in
+            guard let engine, !engine.isRunning else { return }
+            try? engine.start()
         }
         engine.prepare()
         do {
             try engine.start()
         } catch {
-            input.removeTap(onBus: 0)
+            stop()
             throw MeetingRecorderError.audioSetupFailed("microphone unavailable")
         }
     }
 
     func stop() {
+        configurationObserver.map(NotificationCenter.default.removeObserver)
+        configurationObserver = nil
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
     }

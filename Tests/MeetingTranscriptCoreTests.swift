@@ -38,6 +38,7 @@ enum MeetingTranscriptCoreTests {
         timeLabelUsesLowercaseMeridiem()
         clockFormatsMinutesAndHours()
         defaultTitleUsesShortDateAndLowercaseMeridiem()
+        renamedTitleTrimsCapsAndIgnoresNoOps()
         dayLabelsUseTodayYesterdayThenWeekday()
         groupsMeetingsByDayNewestFirst()
         displayLevelMapsDecibelRange()
@@ -205,6 +206,21 @@ enum MeetingTranscriptCoreTests {
             MeetingTranscriptCore.defaultTitle(for: date(2, hour: 9, minute: 30), locale: locale, timeZone: calendar.timeZone),
             "Meeting · Oct 2, 9:30am"
         )
+    }
+
+    private static func renamedTitleTrimsCapsAndIgnoresNoOps() {
+        TestSupport.expectEqual(MeetingTranscriptCore.renamedTitle("  Design sync \n", current: "Old"), "Design sync")
+        TestSupport.expectEqual(MeetingTranscriptCore.renamedTitle("Old", current: "Old"), nil)
+        TestSupport.expectEqual(MeetingTranscriptCore.renamedTitle("  Old\t", current: "Old"), nil)
+        TestSupport.expectEqual(MeetingTranscriptCore.renamedTitle("", current: "Old"), nil)
+        TestSupport.expectEqual(MeetingTranscriptCore.renamedTitle(" \n\t ", current: "Old"), nil)
+        TestSupport.expectEqual(MeetingTranscriptCore.renamedTitle("old", current: "Old"), "old")
+
+        let long = String(repeating: "a", count: MeetingTranscriptCore.maxTitleLength) + "overflow"
+        TestSupport.expectEqual(MeetingTranscriptCore.renamedTitle(long, current: "Old"), String(repeating: "a", count: 120))
+        TestSupport.expectEqual(MeetingTranscriptCore.renamedTitle("   " + long, current: "Old"), String(repeating: "a", count: 120))
+        let cutAtSpace = String(repeating: "b", count: MeetingTranscriptCore.maxTitleLength - 1) + " tail"
+        TestSupport.expectEqual(MeetingTranscriptCore.renamedTitle(cutAtSpace, current: "Old"), String(repeating: "b", count: 119))
     }
 
     private static func dayLabelsUseTodayYesterdayThenWeekday() {

@@ -5,7 +5,11 @@ struct MeetingDetailContent: View {
     let meeting: MeetingRecord
     let onBack: () -> Void
     let onCopy: () -> Void
+    let onRename: (String) -> Void
     let onDelete: () -> Void
+    @State private var isRenaming = false
+    @State private var titleDraft = ""
+    @FocusState private var isTitleFocused: Bool
 
     private var turns: [MeetingTurn] { MeetingTranscriptCore.turns(meeting.segments) }
 
@@ -16,10 +20,7 @@ struct MeetingDetailContent: View {
                 .padding(14)
 
             VStack(alignment: .leading, spacing: 12) {
-                Text(meeting.title)
-                    .font(SukiFont.display(30))
-                    .tracking(-0.4)
-                    .textSelection(.enabled)
+                titleView
                 MeetingChip(text: MeetingTranscriptCore.dayLabel(for: meeting.date, now: Date())
                     + " · " + MeetingTranscriptCore.timeLabel(for: meeting.date))
                 MeetingTab(title: "Transcript")
@@ -36,6 +37,7 @@ struct MeetingDetailContent: View {
                     TranscriptInfoBar(
                         summary: MeetingTranscriptCore.transcriptSummary(meeting.segments, duration: meeting.duration),
                         onCopy: onCopy,
+                        onRename: startRenaming,
                         onDelete: onDelete
                     )
                     ForEach(turns) { MeetingTurnView(turn: $0) }
@@ -46,6 +48,44 @@ struct MeetingDetailContent: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// Serif title that turns into a field while renaming. Enter or clicking away saves; Escape cancels.
+    @ViewBuilder private var titleView: some View {
+        if isRenaming {
+            TextField("Meeting title", text: $titleDraft)
+                .textFieldStyle(.plain)
+                .font(SukiFont.display(30))
+                .tracking(-0.4)
+                .focused($isTitleFocused)
+                .onSubmit(commitRename)
+                .onExitCommand { isRenaming = false }
+                .onChange(of: isTitleFocused) { focused in
+                    if !focused { commitRename() }
+                }
+                .padding(.horizontal, 6)
+                .background(RoundedRectangle(cornerRadius: Radius.sm, style: .continuous).fill(Theme.panel))
+                .padding(.horizontal, -6)
+                .task { isTitleFocused = true }
+                .onDisappear(perform: commitRename)
+        } else {
+            Text(meeting.title)
+                .font(SukiFont.display(30))
+                .tracking(-0.4)
+                .textSelection(.enabled)
+        }
+    }
+
+    private func startRenaming() {
+        guard !isRenaming else { return }
+        titleDraft = meeting.title
+        isRenaming = true
+    }
+
+    private func commitRename() {
+        guard isRenaming else { return }
+        isRenaming = false
+        onRename(titleDraft)
     }
 }
 
@@ -85,6 +125,7 @@ private struct MeetingChip: View {
 private struct TranscriptInfoBar: View {
     let summary: String
     let onCopy: () -> Void
+    let onRename: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
@@ -96,6 +137,7 @@ private struct TranscriptInfoBar: View {
                 .sectionLabelStyle()
             Spacer(minLength: 0)
             HubIconButton(systemName: "doc.on.doc", help: "Copy transcript", action: onCopy)
+            HubIconButton(systemName: "pencil", help: "Rename meeting", action: onRename)
             HubIconButton(systemName: "trash", help: "Delete meeting", isDestructive: true, action: onDelete)
         }
         .padding(.leading, 12)
