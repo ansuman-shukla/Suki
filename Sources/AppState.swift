@@ -629,7 +629,14 @@ final class AppState: ObservableObject, @unchecked Sendable {
     @Published var lastTranscript: String = ""
     @Published var errorMessage: String?
     @Published var statusText: String = "Ready"
-    @Published var hasAccessibility = false
+    @Published var hasAccessibility = false {
+        didSet {
+            // The event tap needs Accessibility, so a tap that failed earlier must be retried once it is granted.
+            if hasAccessibility && !oldValue && hotkeyMonitoringErrorMessage != nil {
+                restartHotkeyMonitoring()
+            }
+        }
+    }
     @Published var hotkeyMonitoringErrorMessage: String?
     @Published var isDebugOverlayActive = false
     @Published var selectedSettingsTab: SettingsTab? = .general
