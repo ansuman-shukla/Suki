@@ -55,6 +55,22 @@
   </tr>
 </table>
 
+## Suki vs Wispr Flow
+
+|                         | Suki                                    | Wispr Flow                                   |
+| ----------------------- | --------------------------------------- | -------------------------------------------- |
+| Price                   | Free, no word limits                    | Free up to 2,000 words a week, then $15/month |
+| Size on disk            | About 25MB                              | About 500MB                                  |
+| Choose your AI model    | Yes, 7+ providers or any compatible one | No                                           |
+| Local models            | Yes                                     | No, transcription always runs in the cloud   |
+| Where your voice goes   | Only to the provider you pick           | Wispr's servers                              |
+| Open source             | Yes (MIT)                               | No                                           |
+| Dictionary and snippets | Yes                                     | Yes                                          |
+| Meeting transcripts     | Yes, split into you and them            | Yes, with AI notes and speaker detection     |
+| Platforms               | Mac                                     | Mac, Windows, iPhone, Android                |
+
+<sub>Wispr Flow details come from its pricing and privacy pages and the size of version 1.6, checked October 2026. Suki is free, but your AI provider may charge for usage.</sub>
+
 ## Quick Start
 
 1. Download `Suki.dmg` from the [latest release](https://github.com/ansuman-shukla/Suki/releases/latest), open it, and drag Suki to Applications.
