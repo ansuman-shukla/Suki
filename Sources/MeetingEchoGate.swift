@@ -12,8 +12,10 @@ protocol MeetingEchoFiltering {
 /// Spots the other side leaking from the speakers into the mic after the mic's own echo
 /// cancellation. Every `cadence` of mic audio it correlates the latest `windowSize` of both
 /// streams with GCC-PHAT. Echo shows up as a strong peak at a steady lag; once enough recent
-/// analyses agree on that lag, the gate suppresses mic audio until the correlation moves, the
-/// near end talks over the echo, or the lock has been gone for `hangoverSeconds`.
+/// analyses agree on that lag, the gate suppresses mic audio until the near end talks over the
+/// echo or the lock has been gone for `hangoverSeconds`. After that, mic audio that stays within
+/// the learned echo level while the far end talks is still marked, since louder speakers leave
+/// residue that correlates too weakly to lock on.
 /// Both streams are placed on the meeting clock the same way `MeetingChunkBuffer` does it,
 /// so the suppressed intervals line up with chunk times.
 struct MeetingEchoGate: MeetingEchoFiltering {
@@ -53,10 +55,6 @@ struct MeetingEchoGate: MeetingEchoFiltering {
     static let fastReleaseCount = 3
     /// Analysed time without a lock that releases suppression; frozen time does not count.
     static let hangoverSeconds: TimeInterval = 2
-    /// Analyses at the locked lag needed after a frozen stretch before the lock is trusted again.
-    static let probationCount = 2
-    /// Consecutive frozen analyses that count as a frozen stretch; one quiet gap between words does not.
-    static let frozenStretch = 2
     /// Far-end level above which the learned echo level is used to judge unlocked mic audio.
     static let farActiveLevel: Float = 0.01
     /// Mic louder than this multiple (12 dB) of the predicted echo is the near end talking.
@@ -171,8 +169,6 @@ struct MeetingEchoGate: MeetingEchoFiltering {
     private var nextAnalysisEnd: Int?
     private var history: [Evidence] = []
     private var lockedRun = 0
-    private var probation = 0
-    private var frozenRun = 0
     private var echoPath: EchoPath?
     /// End of the newest analysis judged as the near end talking; backfill never crosses it.
     private var lastNearEndEnd = Int.min
@@ -213,8 +209,6 @@ struct MeetingEchoGate: MeetingEchoFiltering {
     private mutating func startNewEpoch() {
         history.removeAll(keepingCapacity: true)
         lockedRun = 0
-        probation = 0
-        frozenRun = 0
         suppression = nil
         echoPath = nil
         lastNearEndEnd = Int.min
@@ -240,11 +234,8 @@ struct MeetingEchoGate: MeetingEchoFiltering {
         let micLevel = Self.level(micWindow, from: Self.windowSize - Self.cadence, count: Self.cadence)
         guard micLevel >= Self.energyFloor else {
             stats.frozen += 1
-            frozenRun += 1
-            if frozenRun >= Self.frozenStretch { probation = Self.probationCount }
             return
         }
-        frozenRun = 0
         var evidence = measure(endingAt: end)
         evidence.coupling = micLevel / max(farEndLevel(lag: evidence.lag), Self.minimumLevel)
         history.append(evidence)
@@ -253,24 +244,19 @@ struct MeetingEchoGate: MeetingEchoFiltering {
         let reference = suppression?.lag ?? lock?.lag
         let scored = evidence.score >= Self.scoreFloor
         let consistent = scored && reference.map { abs(evidence.lag - $0) <= Self.lagTolerance } == true
-        if reference == nil { probation = 0 }
-        let trusted = probation == 0
-        if consistent {
-            stats.locked += 1
-            probation = max(0, probation - 1)
-        }
+        if consistent { stats.locked += 1 }
         if suppression == nil {
             let nearEnd = echoPath.map { micLevel > Self.doubleTalkRatio * $0.coupling * farEndLevel(lag: $0.lag) } ?? false
             if nearEnd { lastNearEndEnd = end }
             lockedRun = consistent && !nearEnd ? lockedRun + 1 : 0
-            if lockedRun >= Self.engageCount, trusted, let lock {
+            if lockedRun >= Self.engageCount, let lock {
                 engage(lock, endingAt: end)
             } else if let path = echoPath, !nearEnd, farEndLevel(lag: path.lag) >= Self.farActiveLevel {
                 stats.enveloped += 1
                 mark(from: end - Self.cadence, to: end)
             }
         } else {
-            judgeWhileSuppressing(consistent: consistent && trusted, micLevel: micLevel, endingAt: end)
+            judgeWhileSuppressing(consistent: consistent, micLevel: micLevel, endingAt: end)
         }
         let cutoff = Self.seconds(end) - Self.retentionSeconds
         intervals.removeAll { $0.upperBound < cutoff }
