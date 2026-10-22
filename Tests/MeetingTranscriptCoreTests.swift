@@ -341,6 +341,7 @@ enum MeetingTranscriptCoreTests {
         TestSupport.expect(buffer.append(tone(seconds: 2), arrival: 10).isEmpty, "Speech under the target keeps buffering")
         let chunk = buffer.flush()
         TestSupport.expectApproximatelyEqual(chunk?.start ?? -1, 8)
+        TestSupport.expectApproximatelyEqual(chunk?.audioStart ?? -1, 7.8)
         // 200 ms of quiet lead-in, then the speech; the rest of the silence is not uploaded.
         TestSupport.expectEqual(chunk?.samples.count, Int(2.2 * Double(rate)))
         TestSupport.expectEqual(Array(chunk?.samples.suffix(2 * rate) ?? []), tone(seconds: 2))
@@ -388,8 +389,11 @@ enum MeetingTranscriptCoreTests {
         TestSupport.expectEqual(chunks.count, 1)
         TestSupport.expectApproximatelyEqual(chunks.first?.start ?? -1, 3)
         TestSupport.expectApproximatelyEqual(chunks.first?.duration ?? 0, 15)
+        TestSupport.expectApproximatelyEqual(chunks.first?.audioStart ?? -1, 2.8)
         let rest = buffer.flush()
         TestSupport.expectApproximatelyEqual(rest?.start ?? -1, 17.8)
+        // Cut mid-speech, so the rest has no quiet lead-in.
+        TestSupport.expectApproximatelyEqual(rest?.audioStart ?? -1, 17.8)
         TestSupport.expectApproximatelyEqual(rest?.duration ?? 0, 5.2)
 
         var marathon = MeetingChunkBuffer(speaker: .me)
@@ -422,6 +426,7 @@ enum MeetingTranscriptCoreTests {
         let cut = buffer.append(silence(seconds: 0.1), arrival: 3.1, otherSpeechTime: 2.5)
         TestSupport.expectEqual(cut.count, 1)
         TestSupport.expectApproximatelyEqual(cut.first?.start ?? -1, 1)
+        TestSupport.expectApproximatelyEqual(cut.first?.audioStart ?? -1, 0.8)
         TestSupport.expectEqual(cut.first?.samples.count, Int(1.8 * Double(rate)))
 
         var reply = MeetingChunkBuffer(speaker: .me)
