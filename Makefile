@@ -30,6 +30,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/LLMProvider.swift \
 	Sources/LiveTranscriptionProvider.swift \
 	Sources/MeetingDetectionCore.swift \
+	Sources/MeetingEchoGate.swift \
 	Sources/LiveTranscriptionSession.swift \
 	Sources/LiveTypingCore.swift \
 	Sources/MeetingAudioCapture.swift \
