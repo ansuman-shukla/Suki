@@ -267,7 +267,6 @@ final class MeetingRecorder: ObservableObject {
     }
 
     private func reset() {
-        stopWatchingForAutoStop()
         sources = []
         queue = nil
         buffers = [:]
