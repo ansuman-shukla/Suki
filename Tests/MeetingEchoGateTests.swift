@@ -5,10 +5,14 @@ enum MeetingEchoGateTests {
         correlatorFindsTheEchoDelay()
         correlatorScoresUnrelatedAudioLow()
         speakerEchoIsSuppressedFromItsStart()
+        suppressionWaitsForAgreeingAnalyses()
+        weaklyCorrelatedResidueStillLocks()
+        talkingOverTheEchoReleasesWithinASecond()
         nearEndSpeechIsNeverSuppressed()
         talkingOverTheEchoIsNotMarked()
         weakEchoIsCaughtByItsLearnedLevel()
         loudNearEndAfterALockIsNotCaughtByLevel()
+        learnedEchoLevelFollowsAVolumeChange()
         quietMicIsNotJudged()
         movedCorrelationReleasesQuickly()
         droppedAudioForgetsTheLock()
@@ -109,6 +113,44 @@ enum MeetingEchoGateTests {
         TestSupport.expect(gate.stats.locked >= MeetingEchoGate.lockVotes, "Echo analyses agree on the lag")
     }
 
+    private static func suppressionWaitsForAgreeingAnalyses() {
+        var gate = MeetingEchoGate()
+        let them = speechLike(seconds: 6, seed: 51)
+        let mic = echo(of: them, delay: 800, gain: 0.15)
+        // The first analysis needs a 2 s window; then 5 agreeing votes and 3 locked analyses in a row.
+        feed(&gate, me: Array(mic.prefix(39 * rate / 10)), them: Array(them.prefix(39 * rate / 10)))
+        TestSupport.expect(!gate.isSuppressing, "One lock vote too few is not enough at 3.9 s, got \(gate.stats)")
+        feed(&gate, me: Array(mic.dropFirst(39 * rate / 10)), them: Array(them.dropFirst(39 * rate / 10)), startingAt: 3.9)
+        TestSupport.expect(gate.isSuppressing, "Steady echo is suppressed by 6 s")
+    }
+
+    /// Real speaker residue after cancellation scores 0.03-0.17: echo under uncorrelated residue.
+    private static func weaklyCorrelatedResidueStillLocks() {
+        var gate = MeetingEchoGate()
+        let them = speechLike(seconds: 10, seed: 91)
+        let residue = speechLike(seconds: 10, seed: 92, amplitude: 0.12)
+        let mic = mix(echo(of: them, delay: 800, gain: 0.15), residue).map { $0 * 0.25 }
+        let size = MeetingEchoGate.windowSize
+        let (score, _) = MeetingEchoCorrelator(size: size).correlate(
+            Array(decimated(mic).dropFirst(20_000).prefix(size)), Array(decimated(them).dropFirst(20_000).prefix(size))
+        )
+        TestSupport.expect(score > 0.05 && score < 0.2, "Fixture correlates like real residue, got \(score)")
+        feed(&gate, me: mic, them: them)
+        TestSupport.expect(gate.isSuppressing, "Weak but steady echo still locks, got \(gate.stats)")
+        TestSupport.expect(covered(gate.echoIntervals(overlapping: 0...10), 3...10) >= 6, "Weak echo is marked")
+    }
+
+    private static func talkingOverTheEchoReleasesWithinASecond() {
+        var gate = MeetingEchoGate()
+        let them = speechLike(seconds: 10, seed: 41)
+        let echoed = echo(of: them, delay: 800, gain: 0.15)
+        feed(&gate, me: Array(echoed.prefix(8 * rate)), them: Array(them.prefix(8 * rate)))
+        TestSupport.expect(gate.isSuppressing, "Echo locked before the interruption")
+        let interruption = mix(Array(echoed.dropFirst(8 * rate).prefix(rate)), speechLike(seconds: 1, seed: 42, amplitude: 0.15))
+        feed(&gate, me: interruption, them: Array(them.dropFirst(8 * rate).prefix(rate)), startingAt: 8)
+        TestSupport.expect(!gate.isSuppressing, "Three loud near-end analyses release before the 2 s hangover")
+    }
+
     private static func nearEndSpeechIsNeverSuppressed() {
         var gate = MeetingEchoGate()
         feed(&gate, me: speechLike(seconds: 12, seed: 31), them: speechLike(seconds: 12, seed: 32))
@@ -136,7 +178,20 @@ enum MeetingEchoGateTests {
         feed(&gate, me: mic, them: them)
         TestSupport.expect(gate.stats.enveloped >= 5, "Residue at the learned echo level is marked, got \(gate.stats)")
         let intervals = gate.echoIntervals(overlapping: 0...16)
-        TestSupport.expect(covered(intervals, 11...16) >= 3, "Residue after the lock is gone stays marked, got \(intervals)")
+        TestSupport.expect(covered(intervals, 8.5...11.5) >= 2.8, "Residue is marked while the lock times out, got \(intervals)")
+        TestSupport.expect(covered(intervals, 12...16) >= 3.5, "Residue after the lock is gone stays marked, got \(intervals)")
+    }
+
+    private static func learnedEchoLevelFollowsAVolumeChange() {
+        var gate = MeetingEchoGate()
+        let them = speechLike(seconds: 18, seed: 55)
+        // Speakers turned up 5x at 6 s while echo stays locked, then only uncorrelated residue at the new level.
+        let quiet = Array(echo(of: them, delay: 800, gain: 0.1).prefix(6 * rate))
+        let loud = Array(echo(of: them, delay: 800, gain: 0.5).dropFirst(6 * rate).prefix(6 * rate))
+        let residue = speechLike(seconds: 6, seed: 56, amplitude: 0.05)
+        feed(&gate, me: quiet + loud + residue, them: them)
+        let intervals = gate.echoIntervals(overlapping: 0...18)
+        TestSupport.expect(covered(intervals, 15...18) >= 2.5, "Residue at the louder echo level is still echo, got \(intervals)")
     }
 
     private static func loudNearEndAfterALockIsNotCaughtByLevel() {
