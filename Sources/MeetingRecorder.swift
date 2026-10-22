@@ -25,6 +25,7 @@ final class MeetingRecorder: ObservableObject {
     private let callAppsUsingMicrophone: () -> Set<String>
     private let copyToClipboard: @MainActor (String) -> Void
     private let sleepNotifications: NotificationCenter
+    private let autoStopCheckInterval: TimeInterval
     private let now: () -> Date
     private var sources: [MeetingAudioSource] = []
     private var queue: MeetingTranscriptionQueue?
@@ -37,7 +38,6 @@ final class MeetingRecorder: ObservableObject {
     private var autoStopPolicy = MeetingAutoStopPolicy()
     private var autoStopTimer: Timer?
     private var sleepObserver: NSObjectProtocol?
-    private let autoStopCheckInterval: TimeInterval = 2
 
     /// The periodic auto-stop check or the sleep observer is installed.
     var isWatchingForAutoStop: Bool { autoStopTimer != nil || sleepObserver != nil }
@@ -50,6 +50,7 @@ final class MeetingRecorder: ObservableObject {
         callAppsUsingMicrophone: @escaping () -> Set<String>,
         copyToClipboard: @escaping @MainActor (String) -> Void = MeetingRecorder.copyToClipboard,
         sleepNotifications: NotificationCenter = NSWorkspace.shared.notificationCenter,
+        autoStopCheckInterval: TimeInterval = 2,
         now: @escaping () -> Date = Date.init
     ) {
         self.store = store
@@ -59,6 +60,7 @@ final class MeetingRecorder: ObservableObject {
         self.callAppsUsingMicrophone = callAppsUsingMicrophone
         self.copyToClipboard = copyToClipboard
         self.sleepNotifications = sleepNotifications
+        self.autoStopCheckInterval = autoStopCheckInterval
         self.now = now
         meetings = store.loadAll()
     }
