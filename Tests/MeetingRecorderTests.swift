@@ -51,6 +51,8 @@ private final class Harness {
     var sourcesError: Error?
     var micAllowed = true
     var micAsked = 0
+    var callApps: Set<String> = []
+    let sleepNotifications = NotificationCenter()
     lazy var store = MeetingStore(directory: directory)
     lazy var recorder = MeetingRecorder(
         store: store,
@@ -66,7 +68,9 @@ private final class Harness {
             micAsked += 1
             return micAllowed
         },
+        callAppsUsingMicrophone: { [unowned self] in callApps },
         copyToClipboard: { [unowned self] in copied.append($0) },
+        sleepNotifications: sleepNotifications,
         now: { [unowned self] in clock }
     )
 
