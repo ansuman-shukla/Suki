@@ -54,7 +54,10 @@ enum MeetingEchoGateTests {
     }
 
     private static func mix(_ a: [Float], _ b: [Float]) -> [Float] {
-        (0..<max(a.count, b.count)).map { (($0 < a.count) ? a[$0] : 0) + (($0 < b.count) ? b[$0] : 0) }
+        var result = [Float](repeating: 0, count: max(a.count, b.count))
+        for (index, sample) in a.enumerated() { result[index] += sample }
+        for (index, sample) in b.enumerated() { result[index] += sample }
+        return result
     }
 
     /// Feeds both streams in 100 ms batches on the meeting clock, like live capture.
