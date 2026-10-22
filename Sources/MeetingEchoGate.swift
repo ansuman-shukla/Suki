@@ -49,7 +49,7 @@ struct MeetingEchoGate: MeetingEchoFiltering {
     static let maxLag = 4_000
     /// Consecutive locked analyses before suppression engages.
     static let engageCount = 3
-    /// Consecutive near-end analyses (correlation moved or double talk) that release at once.
+    /// Consecutive analyses with the mic louder than the predicted echo (double talk) that release at once.
     static let fastReleaseCount = 3
     /// Analysed time without a lock that releases suppression; frozen time does not count.
     static let hangoverSeconds: TimeInterval = 2
@@ -128,10 +128,14 @@ struct MeetingEchoGate: MeetingEchoFiltering {
         let end: Int
         let score: Float
         let lag: Int
+        /// Mic level over the far-end level at `lag`, for the newest cadence slice.
+        var coupling: Float = 0
     }
 
     private struct Lock {
         let lag: Int
+        /// Median coupling of the votes, steadier than any single slice.
+        let coupling: Float
         /// End of the oldest analysis in the unbroken run of votes for `lag`.
         let earliestEnd: Int
     }
@@ -170,6 +174,8 @@ struct MeetingEchoGate: MeetingEchoFiltering {
     private var probation = 0
     private var frozenRun = 0
     private var echoPath: EchoPath?
+    /// End of the newest analysis judged as the near end talking; backfill never crosses it.
+    private var lastNearEndEnd = Int.min
     private var suppression: Suppression?
     private var intervals: [ClosedRange<TimeInterval>] = []
 
@@ -211,6 +217,7 @@ struct MeetingEchoGate: MeetingEchoFiltering {
         frozenRun = 0
         suppression = nil
         echoPath = nil
+        lastNearEndEnd = Int.min
     }
 
     /// Analyses run on a grid every `cadence` of mic time, once both streams cover the window.
@@ -238,14 +245,14 @@ struct MeetingEchoGate: MeetingEchoFiltering {
             return
         }
         frozenRun = 0
-        let evidence = measure(endingAt: end)
+        var evidence = measure(endingAt: end)
+        evidence.coupling = micLevel / max(farEndLevel(lag: evidence.lag), Self.minimumLevel)
         history.append(evidence)
         if history.count > Self.historyCount { history.removeFirst() }
         let lock = currentLock(endingAt: end)
         let reference = suppression?.lag ?? lock?.lag
         let scored = evidence.score >= Self.scoreFloor
         let consistent = scored && reference.map { abs(evidence.lag - $0) <= Self.lagTolerance } == true
-        let moved = scored && reference.map { abs(evidence.lag - $0) > Self.lagTolerance } == true
         if reference == nil { probation = 0 }
         let trusted = probation == 0
         if consistent {
@@ -253,16 +260,17 @@ struct MeetingEchoGate: MeetingEchoFiltering {
             probation = max(0, probation - 1)
         }
         if suppression == nil {
-            lockedRun = consistent ? lockedRun + 1 : 0
+            let nearEnd = echoPath.map { micLevel > Self.doubleTalkRatio * $0.coupling * farEndLevel(lag: $0.lag) } ?? false
+            if nearEnd { lastNearEndEnd = end }
+            lockedRun = consistent && !nearEnd ? lockedRun + 1 : 0
             if lockedRun >= Self.engageCount, trusted, let lock {
-                engage(lock, micLevel: micLevel, endingAt: end)
-            } else if let path = echoPath, micLevel <= Self.doubleTalkRatio * path.coupling * farEndLevel(lag: path.lag),
-                      farEndLevel(lag: path.lag) >= Self.farActiveLevel {
+                engage(lock, endingAt: end)
+            } else if let path = echoPath, !nearEnd, farEndLevel(lag: path.lag) >= Self.farActiveLevel {
                 stats.enveloped += 1
                 mark(from: end - Self.cadence, to: end)
             }
         } else {
-            judgeWhileSuppressing(consistent: consistent && trusted, moved: moved, micLevel: micLevel, endingAt: end)
+            judgeWhileSuppressing(consistent: consistent && trusted, micLevel: micLevel, endingAt: end)
         }
         let cutoff = Self.seconds(end) - Self.retentionSeconds
         intervals.removeAll { $0.upperBound < cutoff }
@@ -297,21 +305,22 @@ struct MeetingEchoGate: MeetingEchoFiltering {
             guard evidence.score >= Self.scoreFloor, abs(evidence.lag - median) <= Self.lagTolerance else { break }
             earliest = evidence.end
         }
-        return Lock(lag: median, earliestEnd: earliest)
+        let couplings = scored.filter { abs($0.lag - median) <= Self.lagTolerance }.map(\.coupling).sorted()
+        return Lock(lag: median, coupling: couplings[couplings.count / 2], earliestEnd: earliest)
     }
 
     /// Suppresses from one cadence before the oldest slice of the run that locked, so the
     /// echo heard while the evidence built up is covered too.
-    private mutating func engage(_ lock: Lock, micLevel: Float, endingAt end: Int) {
-        let farLevel = farEndLevel(lag: lock.lag)
-        let coupling = micLevel / max(farLevel, Self.minimumLevel)
-        suppression = Suppression(lag: lock.lag, coupling: coupling)
-        echoPath = EchoPath(lag: lock.lag, coupling: coupling)
+    private mutating func engage(_ lock: Lock, endingAt end: Int) {
+        suppression = Suppression(lag: lock.lag, coupling: lock.coupling)
+        echoPath = EchoPath(lag: lock.lag, coupling: lock.coupling)
         let evidenceStart = lock.earliestEnd - 2 * Self.cadence
-        mark(from: max(evidenceStart, end - Self.backfillSamples), to: end)
+        mark(from: max(evidenceStart, end - Self.backfillSamples, lastNearEndEnd), to: end)
     }
 
-    private mutating func judgeWhileSuppressing(consistent: Bool, moved: Bool, micLevel: Float, endingAt end: Int) {
+    /// A lag that drifts at echo level is still echo (the residue changes as cancellation adapts),
+    /// so only a mic louder than the predicted echo releases at once; anything else waits out the hangover.
+    private mutating func judgeWhileSuppressing(consistent: Bool, micLevel: Float, endingAt end: Int) {
         guard var state = suppression else { return }
         let farLevel = farEndLevel(lag: state.lag)
         let nearEndTalks = micLevel > Self.doubleTalkRatio * state.coupling * farLevel
@@ -321,7 +330,8 @@ struct MeetingEchoGate: MeetingEchoFiltering {
             state.coupling += Self.couplingSmoothing * (micLevel / max(farLevel, Self.minimumLevel) - state.coupling)
             echoPath = EchoPath(lag: state.lag, coupling: state.coupling)
             mark(from: end - Self.cadence, to: end)
-        } else if moved || nearEndTalks {
+        } else if nearEndTalks {
+            lastNearEndEnd = end
             state.nearEndRun += 1
             state.unlockedSamples += Self.cadence
         } else {
