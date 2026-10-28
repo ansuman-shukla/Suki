@@ -9,11 +9,13 @@ final class MeetingStore {
         self.directory = directory
     }
 
-    static var defaultDirectory: URL {
+    static var defaultDirectory: URL { directory(forApp: AppName.displayName) }
+
+    static func directory(forApp appName: String) -> URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         return appSupport
-            .appendingPathComponent(AppName.displayName, isDirectory: true)
+            .appendingPathComponent(appName, isDirectory: true)
             .appendingPathComponent("Meetings", isDirectory: true)
     }
 
