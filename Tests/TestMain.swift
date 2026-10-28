@@ -35,6 +35,7 @@ struct SukiTests {
         LiveTypingCoreTests.run()
         MeetingTranscriptCoreTests.run()
         MeetingStoreTests.run()
+        MeetingsMCPServerTests.run()
         MeetingAudioCaptureTests.run()
         MeetingMicWatchdogTests.run()
         await MeetingTranscriptionPipelineTests.run()
