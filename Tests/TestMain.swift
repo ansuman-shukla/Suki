@@ -42,6 +42,7 @@ struct SukiTests {
         await MeetingTranscriptionPipelineTests.run()
         await MeetingRecorderTests.run()
         SyntheticKeystrokeTyperTests.run()
+        PermissionRepairTests.run()
         print("SukiTests passed")
     }
 }

@@ -65,7 +65,7 @@ make clean
 make ARCH="$(uname -m)" CODESIGN_IDENTITY=-
 ```
 
-Ad-hoc signing is useful for build checks, but rebuilding or changing signing identity can invalidate macOS permission grants. For repeated interactive testing, use a consistent local code-signing identity and app path. Check the selected build and its signature before troubleshooting permissions. Do not reset permissions as part of automated tests.
+Ad-hoc signing is useful for build checks, but rebuilding or changing signing identity can invalidate macOS permission grants. `make install` therefore refuses ad-hoc builds, and the production bundle ID (`com.ansumanshukla.suki`) only builds when signed with the "Suki Release" certificate. For repeated interactive testing, use a consistent local code-signing identity and app path. Check the selected build and its signature before troubleshooting permissions. Do not reset permissions as part of automated tests.
 
 To produce a universal (Apple Silicon + Intel) binary:
 
