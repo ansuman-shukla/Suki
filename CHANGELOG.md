@@ -10,6 +10,11 @@ This project uses semantic versioning for public releases. Use `MAJOR.MINOR.PATC
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-28
+
+### Added
+- Let your AI agent read your meetings. Suki now includes a small, read-only MCP server, so coding agents and AI apps can list, search, and read the meetings you've recorded. It stays off until you add it to an agent's config, never touches the network, and can't change or delete anything. Setup steps are in `docs/advanced.md`.
+
 ## [0.1.1] - 2026-10-21
 
 A small release with no changes to the app itself.

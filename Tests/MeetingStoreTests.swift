@@ -38,6 +38,9 @@ enum MeetingStoreTests {
         TestSupport.expectEqual(url.lastPathComponent, "Meetings")
         TestSupport.expectEqual(url.deletingLastPathComponent().lastPathComponent, AppName.displayName)
         TestSupport.expectEqual(url.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent, "Application Support")
+        let other = MeetingStore.directory(forApp: "Synthetic App")
+        TestSupport.expectEqual(other.deletingLastPathComponent().lastPathComponent, "Synthetic App")
+        TestSupport.expectEqual(other.deletingLastPathComponent().deletingLastPathComponent(), url.deletingLastPathComponent().deletingLastPathComponent())
     }
 
     private static func savesLoadsNewestFirstAndRoundTrips() {

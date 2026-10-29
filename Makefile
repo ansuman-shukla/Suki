@@ -9,10 +9,18 @@ empty :=
 space := $(empty) $(empty)
 APP_EXECUTABLE = $(MACOS_DIR)/$(APP_NAME)
 APP_EXECUTABLE_TARGET := $(subst $(space),\ ,$(APP_EXECUTABLE))
+# Meetings MCP server: a separate stdio tool shipped next to the app executable.
+MCP_SOURCES = $(shell find MCP -name '*.swift' -type f | LC_ALL=C sort) \
+	Sources/AppName.swift \
+	Sources/MeetingStore.swift \
+	Sources/MeetingTranscriptCore.swift
+MCP_EXECUTABLE = $(MACOS_DIR)/suki-mcp
+MCP_EXECUTABLE_TARGET := $(subst $(space),\ ,$(MCP_EXECUTABLE))
 
 SOURCES = $(shell find Sources -name '*.swift' -type f | LC_ALL=C sort)
 TEST_RUNNER = $(BUILD_DIR)/SukiTests
 TEST_PRODUCTION_SOURCES = \
+	MCP/MeetingsMCPServer.swift \
 	Sources/APIProvider.swift \
 	Sources/AppAppearance.swift \
 	Sources/AppContextService.swift \
@@ -95,7 +103,23 @@ RELEASE_CERT_SHA1 = 7003a85059bc0f7b214a0c32a1708de082791f00
 
 all: $(APP_EXECUTABLE_TARGET)
 
-$(APP_EXECUTABLE_TARGET): $(SOURCES) Info.plist $(ICON_ICNS) $(SOUND_FILES)
+# Nested code must be signed before the bundle seals it.
+$(MCP_EXECUTABLE_TARGET): $(MCP_SOURCES)
+	@mkdir -p "$(MACOS_DIR)"
+ifeq ($(ARCH),universal)
+	swiftc -o "$(MCP_EXECUTABLE)-arm64" -sdk $(shell xcrun --show-sdk-path) \
+		-target arm64-apple-macosx13.0 $(MCP_SOURCES)
+	swiftc -o "$(MCP_EXECUTABLE)-x86_64" -sdk $(shell xcrun --show-sdk-path) \
+		-target x86_64-apple-macosx13.0 $(MCP_SOURCES)
+	lipo -create -output "$(MCP_EXECUTABLE)" "$(MCP_EXECUTABLE)-arm64" "$(MCP_EXECUTABLE)-x86_64"
+	@rm "$(MCP_EXECUTABLE)-arm64" "$(MCP_EXECUTABLE)-x86_64"
+else
+	swiftc -o "$(MCP_EXECUTABLE)" -sdk $(shell xcrun --show-sdk-path) \
+		-target $(ARCH)-apple-macosx13.0 $(MCP_SOURCES)
+endif
+	@codesign --force --options runtime --identifier "$(BUNDLE_ID).mcp" --sign "$(CODESIGN_IDENTITY)" "$(MCP_EXECUTABLE)"
+
+$(APP_EXECUTABLE_TARGET): $(SOURCES) Info.plist $(ICON_ICNS) $(SOUND_FILES) $(MCP_EXECUTABLE_TARGET)
 	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES)"
 ifeq ($(ARCH),universal)
 	swiftc \
@@ -151,6 +175,12 @@ typecheck:
 		-sdk $(shell xcrun --show-sdk-path) \
 		-target $(ARCH)-apple-macosx13.0 \
 		$(SOURCES)
+	swiftc \
+		-typecheck \
+		-warnings-as-errors \
+		-sdk $(shell xcrun --show-sdk-path) \
+		-target $(ARCH)-apple-macosx13.0 \
+		$(MCP_SOURCES)
 
 test:
 	@mkdir -p "$(BUILD_DIR)"
