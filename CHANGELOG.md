@@ -10,6 +10,19 @@ This project uses semantic versioning for public releases. Use `MAJOR.MINOR.PATC
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-29
+
+### Added
+- Meetings now stop recording on their own when the call ends, after 10 minutes of silence, when your Mac goes to sleep, or after 4 hours. An auto-stopped meeting is saved, but not copied to your clipboard, and a notice tells you why it stopped.
+- A **Repair** button for stuck permissions. If System Settings shows Accessibility or Screen Recording as on but Suki still can't use it, Repair resets Suki's permission and asks again. You'll find it in the permission alerts, the menu bar, Settings, and Setup.
+
+### Improved
+- On laptop speakers, meeting transcripts no longer turn the other person's voice into short fake "You" lines. While they're talking, your own lines may show up a few seconds later in the live view.
+- Shortcuts start working as soon as you grant Accessibility, with no relaunch needed.
+
+### Fixed
+- Long meeting transcripts no longer stutter while scrolling.
+
 ## [0.2.0] - 2026-10-28
 
 ### Added
