@@ -22,7 +22,7 @@ struct GeminiLiveTranscriptState {
     private var receivedTurnCompleteSinceCommit = false
 
     var update: LiveTranscriptUpdate {
-        LiveTranscriptUpdate(stableText: finalText, previewText: Self.join(finalText, interimText))
+        LiveTranscriptUpdate(stableText: finalText, previewText: LiveTranscriptText.join(finalText, interimText))
     }
 
     /// The final transcript once the server has finalized everything spoken
@@ -34,7 +34,7 @@ struct GeminiLiveTranscriptState {
     /// Finalized text plus any unfinalized interim tail, used when the server
     /// goes quiet without finalizing the last words.
     var bestEffortTranscript: String {
-        Self.join(finalText, interimText)
+        LiveTranscriptText.join(finalText, interimText)
     }
 
     mutating func markCommitted() {
@@ -57,7 +57,7 @@ struct GeminiLiveTranscriptState {
 
         var transcriptChanged = false
         if let final = (content["inputTranscription"] as? [String: Any])?["text"] as? String {
-            finalText = Self.join(finalText, final)
+            finalText = LiveTranscriptText.join(finalText, final)
             interimText = ""
             receivedFinalSinceCommit = isCommitted
             transcriptChanged = true
@@ -71,16 +71,6 @@ struct GeminiLiveTranscriptState {
             return .turnComplete
         }
         return transcriptChanged ? .transcriptChanged : .other
-    }
-
-    static func join(_ head: String, _ tail: String) -> String {
-        let tail = tail.trimmingCharacters(in: .newlines)
-        guard !tail.trimmingCharacters(in: .whitespaces).isEmpty else { return head }
-        guard !head.isEmpty else { return LiveTranscriptText.trimmingLeadingWhitespace(tail) }
-        if head.last?.isWhitespace == true || tail.first?.isWhitespace == true {
-            return head + tail
-        }
-        return head + " " + tail
     }
 
     // MARK: Client messages

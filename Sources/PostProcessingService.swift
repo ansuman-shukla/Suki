@@ -535,7 +535,6 @@ Model: \(model)
 
         var payload: [String: Any] = [
             "model": model,
-            "temperature": 0.0,
             "messages": [
                 [
                     "role": "system",
@@ -667,7 +666,6 @@ Model: \(model)
 
         var payload: [String: Any] = [
             "model": model,
-            "temperature": 0.0,
             "messages": [
                 [
                     "role": "system",
@@ -852,7 +850,6 @@ Model: \(model)
 
         var payload: [String: Any] = [
             "model": model,
-            "temperature": 0.0,
             "messages": [
                 ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": userMessage],

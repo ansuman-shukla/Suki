@@ -10,6 +10,7 @@ struct SukiApp: App {
         MenuBarExtra(isInserted: $showMenuBarIcon) {
             MenuBarView()
                 .environmentObject(appDelegate.appState)
+                .environmentObject(appDelegate.meetingRecorder)
         } label: {
             MenuBarLabel()
                 .environmentObject(appDelegate.appState)

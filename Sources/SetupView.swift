@@ -4,52 +4,6 @@ import Combine
 import Foundation
 import ServiceManagement
 
-private struct SetupProviderSettingsSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Binding var apiBaseURLInput: String
-    @Binding var transcriptionAPIURLInput: String
-    @Binding var transcriptionAPIKeyInput: String
-
-    var body: some View {
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Advanced Provider Settings")
-                    .font(.title2.weight(.semibold))
-                Text("Use these fields when pointing \(AppName.displayName) at another OpenAI-compatible provider or when you need custom model IDs.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
-
-            Divider()
-
-            ScrollView {
-                ProviderSettingsFields(
-                    apiBaseURLInput: $apiBaseURLInput,
-                    transcriptionAPIURLInput: $transcriptionAPIURLInput,
-                    transcriptionAPIKeyInput: $transcriptionAPIKeyInput,
-                    showsModelDescription: true
-                )
-                .padding(20)
-            }
-
-            Divider()
-
-            HStack {
-                Spacer()
-                Button("Done") {
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-            }
-            .padding(16)
-        }
-        .frame(width: 560, height: 520)
-    }
-}
-
 struct SetupView: View {
     var onComplete: () -> Void
     @EnvironmentObject var appState: AppState
@@ -73,10 +27,8 @@ struct SetupView: View {
     @State private var currentStep = SetupStep.welcome
     @State private var micPermissionGranted = false
     @State private var accessibilityGranted = false
-    @State private var apiDraft = APIConfigurationDraft()
-    @State private var isValidatingKey = false
-    @State private var keyValidationError: String?
-    @State private var showingProviderSettingsSheet = false
+    @State private var llmChoice: LLMProvider?
+    @State private var transcriptionChoice: TranscriptionProvider?
     @State private var accessibilityTimer: Timer?
     @State private var screenRecordingTimer: Timer?
     @State private var customVocabularyInput: String = ""
@@ -122,12 +74,10 @@ struct SetupView: View {
                     Group {
                         if currentStep != .welcome {
                             Button("Back") {
-                                keyValidationError = nil
                                 withAnimation {
                                     currentStep = previousStep(currentStep)
                                 }
                             }
-                            .disabled(isValidatingKey)
                         }
                     }
 
@@ -135,13 +85,7 @@ struct SetupView: View {
 
                     Group {
                         if currentStep != .ready {
-                            if currentStep == .apiKey {
-                                Button(isValidatingKey ? "Validating..." : "Continue") {
-                                    validateAndContinue()
-                                }
-                                .keyboardShortcut(.defaultAction)
-                                .disabled(apiDraft.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isValidatingKey)
-                            } else if currentStep == .vocabulary {
+                            if currentStep == .vocabulary {
                                 Button("Continue") {
                                     saveCustomVocabularyAndContinue()
                                 }
@@ -189,33 +133,20 @@ struct SetupView: View {
         }
         .frame(width: 520, height: 680)
         .onAppear {
-            apiDraft.present(appState.committedAPIConfiguration)
-            isValidatingKey = false
-            keyValidationError = nil
+            // Re-running setup keeps providers that already work; a fresh
+            // install starts with nothing selected.
+            if llmChoice == nil, appState.isLLMConfigured { llmChoice = appState.llmProvider }
+            if transcriptionChoice == nil, appState.isTranscriptionConfigured {
+                transcriptionChoice = appState.transcriptionProvider
+            }
             customVocabularyInput = appState.customVocabulary
             checkMicPermission()
             checkAccessibility()
         }
         .onDisappear {
-            apiDraft.dismiss()
             accessibilityTimer?.invalidate()
             screenRecordingTimer?.invalidate()
             appState.resumeHotkeyMonitoringAfterShortcutCapture()
-        }
-        .sheet(isPresented: $showingProviderSettingsSheet) {
-            SetupProviderSettingsSheet(
-                apiBaseURLInput: $apiDraft.baseURL,
-                transcriptionAPIURLInput: $apiDraft.transcriptionAPIURL,
-                transcriptionAPIKeyInput: $apiDraft.transcriptionAPIKey
-            )
-                .environmentObject(appState)
-        }
-        .onChange(of: appState.committedAPIConfiguration) { saved in
-            apiDraft.reconcile(saved)
-            keyValidationError = nil
-        }
-        .onChange(of: apiDraft.configuration) { _ in
-            keyValidationError = nil
         }
         .onChange(of: isCapturingShortcut) { isCapturing in
             if isCapturing {
@@ -282,93 +213,7 @@ struct SetupView: View {
     }
 
     var apiKeyStep: some View {
-        VStack {
-            Spacer(minLength: 0)
-
-            VStack(spacing: 20) {
-                Image(systemName: "key.fill")
-                    .font(.system(size: 60))
-                    .foregroundStyle(.blue)
-
-                Text("API Key")
-                    .font(.title)
-                    .fontWeight(.bold)
-
-                Text("Enter an API key for your OpenAI-compatible provider. If you are not using Groq, expand the advanced provider settings and enter that provider's base URL and model IDs before continuing.")
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Using Groq?")
-                            .font(.subheadline.weight(.semibold))
-                        VStack(alignment: .leading, spacing: 2) {
-                            instructionRow(number: "1", text: "Go to [console.groq.com/keys](https://console.groq.com/keys)")
-                            instructionRow(number: "2", text: "Create a free account (if you don't have one)")
-                            instructionRow(number: "3", text: "Click **Create API Key** and copy it")
-                        }
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.blue.opacity(0.06))
-                    )
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("API Key")
-                            .font(.headline)
-                        SecureField("Paste your API key", text: $apiDraft.apiKey)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                            .disabled(isValidatingKey)
-
-                        if let error = keyValidationError {
-                            Label(error, systemImage: "xmark.circle.fill")
-                                .foregroundStyle(.red)
-                                .font(.caption)
-                        }
-                    }
-
-                    Button {
-                        showingProviderSettingsSheet = true
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "slider.horizontal.3")
-                                .foregroundStyle(.secondary)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Advanced Provider Settings")
-                                    .foregroundStyle(.primary)
-                                Text("Base URL and model IDs")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 8)
-                }
-            }
-            .frame(maxWidth: 440)
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        SetupProvidersStep(llmChoice: $llmChoice, transcriptionChoice: $transcriptionChoice)
     }
 
     var micPermissionStep: some View {
@@ -989,6 +834,9 @@ struct SetupView: View {
             return appState.hasScreenRecordingPermission
         case .testTranscription:
             return testPhase == .done && !testTranscript.isEmpty && testError == nil
+        case .apiKey:
+            return llmChoice != nil && transcriptionChoice != nil
+                && appState.isLLMConfigured && appState.isTranscriptionConfigured
         default:
             return true
         }
@@ -1026,43 +874,6 @@ struct SetupView: View {
     }
 
     // MARK: - Actions
-
-    func validateAndContinue() {
-        guard !isValidatingKey else { return }
-        let submission = apiDraft.submission
-        isValidatingKey = true
-        keyValidationError = nil
-
-        Task { @MainActor in
-            var accepted: ValidatedAPIConfiguration?
-            let valid = await APIConfigurationSaveFlow.validateAndApply(
-                apiKey: submission.configuration.apiKey,
-                baseURL: submission.configuration.baseURL,
-                transcriptionAPIURL: submission.configuration.transcriptionAPIURL,
-                transcriptionAPIKey: submission.configuration.transcriptionAPIKey
-            ) { configuration in
-                if apiDraft.accept(configuration, for: submission) {
-                    accepted = configuration
-                }
-                appState.updateAPIConfiguration(
-                    apiKey: configuration.apiKey,
-                    baseURL: configuration.baseURL,
-                    transcriptionAPIURL: configuration.transcriptionAPIURL,
-                    transcriptionAPIKey: configuration.transcriptionAPIKey
-                )
-            }
-            guard apiDraft.isCurrent(submission) else { return }
-            isValidatingKey = false
-            if valid {
-                if let accepted, apiDraft.configuration == accepted,
-                   appState.committedAPIConfiguration == accepted, currentStep == .apiKey {
-                    withAnimation { currentStep = nextStep(currentStep) }
-                }
-            } else if apiDraft.matches(submission) {
-                keyValidationError = "Validation failed. Please check your API key and provider settings, then try again."
-            }
-        }
-    }
 
     func saveCustomVocabularyAndContinue() {
         appState.customVocabulary = customVocabularyInput.trimmingCharacters(in: .whitespacesAndNewlines)

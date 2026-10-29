@@ -144,18 +144,12 @@ private struct ShortcutPresetRow: View {
         Button(action: action) {
             HStack {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? .blue : .secondary)
+                    .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textTertiary)
                 Text(title)
                     .foregroundStyle(.primary)
                 Spacer()
             }
-            .padding(12)
-            .background(isSelected ? Color.blue.opacity(0.1) : Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 1.5)
-            )
+            .shortcutOptionStyle(isSelected: isSelected)
         }
         .buttonStyle(.plain)
     }
@@ -184,7 +178,7 @@ private struct ShortcutCaptureRow: View {
                 } label: {
                     HStack(alignment: .center, spacing: 10) {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : (savedBinding == nil ? "plus.circle" : "circle"))
-                            .foregroundStyle(isSelected ? .blue : .secondary)
+                            .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textTertiary)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(displayedBindingName)
@@ -197,13 +191,7 @@ private struct ShortcutCaptureRow: View {
 
                         Spacer()
                     }
-                    .padding(12)
-                    .background(isSelected ? Color.blue.opacity(0.1) : Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 1.5)
-                    )
+                    .shortcutOptionStyle(isSelected: isSelected)
                 }
                 .buttonStyle(.plain)
                 .disabled(isCapturing)
@@ -215,7 +203,7 @@ private struct ShortcutCaptureRow: View {
                         startCapture()
                     }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.settings)
 
                 if isCapturing {
                     Button("Cancel") {
@@ -233,7 +221,7 @@ private struct ShortcutCaptureRow: View {
                     systemImage: "keyboard"
                 )
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Theme.micActive)
             }
         }
         .onDisappear {
@@ -337,5 +325,20 @@ private struct ShortcutCaptureRow: View {
 
     private var displayedBindingUsesMonospace: Bool {
         currentBinding != nil || savedBinding != nil
+    }
+}
+
+private extension View {
+    /// Selectable shortcut card: warm highlight and a dark outline when chosen.
+    func shortcutOptionStyle(isSelected: Bool) -> some View {
+        padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+                    .fill(isSelected ? Theme.selection : Color(nsColor: .controlBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+                    .stroke(isSelected ? Theme.textPrimary : Color.clear, lineWidth: 1)
+            )
     }
 }
