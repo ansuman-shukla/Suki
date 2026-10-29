@@ -41,6 +41,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/LiveTranscriptionSession.swift \
 	Sources/LiveTypingCore.swift \
 	Sources/MeetingAudioCapture.swift \
+	Sources/MeetingAutoStopCore.swift \
 	Sources/MeetingMicWatchdog.swift \
 	Sources/MeetingRecorder.swift \
 	Sources/MeetingStore.swift \
