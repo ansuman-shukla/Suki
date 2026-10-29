@@ -39,6 +39,18 @@ private final class EchoTranscriber: SpeechToTextService {
     }
 }
 
+/// Marks whatever the test says is echo, so recorder behavior doesn't depend on signal analysis.
+private struct ScriptedEchoGate: MeetingEchoFiltering {
+    let intervals: () -> [ClosedRange<TimeInterval>]
+    var stats = MeetingEchoGate.Stats()
+
+    mutating func append(_ samples: [Float], from speaker: MeetingSpeaker, arrival: TimeInterval) {}
+
+    func echoIntervals(overlapping range: ClosedRange<TimeInterval>) -> [ClosedRange<TimeInterval>] {
+        intervals().filter { $0.overlaps(range) }
+    }
+}
+
 @MainActor
 private final class Harness {
     let me = FakeSource(.me)
@@ -55,6 +67,7 @@ private final class Harness {
     let sleepNotifications = NotificationCenter()
     /// Long enough that the real timer never fires mid-test unless a test asks for it.
     var autoStopCheckInterval: TimeInterval = 3_600
+    var echo: [ClosedRange<TimeInterval>] = []
     lazy var store = MeetingStore(directory: directory)
     lazy var recorder = MeetingRecorder(
         store: store,
@@ -72,6 +85,7 @@ private final class Harness {
         },
         callAppsUsingMicrophone: { [unowned self] in callApps },
         copyToClipboard: { [unowned self] in copied.append($0) },
+        makeEchoGate: { [unowned self] in ScriptedEchoGate(intervals: { [unowned self] in echo }) },
         sleepNotifications: sleepNotifications,
         autoStopCheckInterval: autoStopCheckInterval,
         now: { [unowned self] in clock }
@@ -123,6 +137,10 @@ enum MeetingRecorderTests {
         await hardCapStopsALongMeeting()
         await autoStopSaveFailureSaysSo()
         await timerRunsTheAutoStopCheck()
+        await echoOnlyMeChunkIsDropped()
+        await echoAtTheStartOfMeIsTrimmed()
+        await meWaitsForTheEchoGateWhileThemTalks()
+        await meUploadsRightAwayWhenThemWasQuiet()
     }
 
     private static func tone(_ seconds: Double) -> [Float] { MeetingTranscriptCoreTests.tone(seconds: seconds) }
@@ -278,6 +296,60 @@ enum MeetingRecorderTests {
         TestSupport.expectEqual(recorder.phase, .idle)
         TestSupport.expectEqual(recorder.errorMessage, "No speech was picked up, so nothing was saved.")
         TestSupport.expect(!recorder.isWatchingForAutoStop, "The timer is gone after the auto-stop")
+    }
+
+    @MainActor
+    private static func echoOnlyMeChunkIsDropped() async {
+        let harness = Harness()
+        harness.echo = [0...10]
+        await harness.recorder.start()
+        let tone = MeetingTranscriptCoreTests.tone, silence = MeetingTranscriptCoreTests.silence
+        harness.play(them: tone(3, 0.2) + silence(5), me: silence(0.5) + tone(2, 0.2) + silence(5.5))
+        await harness.settle { harness.transcriber.calls == 1 }
+        await harness.recorder.stop()
+        TestSupport.expectEqual(harness.transcriber.calls, 1)
+        TestSupport.expectEqual(harness.copied, ["Them: 3 seconds"])
+    }
+
+    @MainActor
+    private static func echoAtTheStartOfMeIsTrimmed() async {
+        let harness = Harness()
+        harness.echo = [0...2.5]
+        await harness.recorder.start()
+        let tone = MeetingTranscriptCoreTests.tone, silence = MeetingTranscriptCoreTests.silence
+        harness.play(them: tone(2, 0.2) + silence(7), me: silence(1) + tone(3, 0.2) + silence(5))
+        await harness.settle()
+        await harness.recorder.stop()
+        let me = harness.store.loadAll().first?.segments.first { $0.speaker == .me }
+        TestSupport.expect(me != nil, "Speech after the echo is kept")
+        TestSupport.expectApproximatelyEqual(me?.start ?? 0, 2.5, accuracy: 0.11)
+    }
+
+    @MainActor
+    private static func meWaitsForTheEchoGateWhileThemTalks() async {
+        let harness = Harness()
+        await harness.recorder.start()
+        let tone = MeetingTranscriptCoreTests.tone, silence = MeetingTranscriptCoreTests.silence
+        // Me audio ends at 3.6 s with its kept pause; it may only upload once the clock passes 7.1 s.
+        harness.play(them: tone(2, 0.2) + silence(4.6), me: silence(1.5) + tone(1.5, 0.2) + silence(3.6))
+        await harness.settle { harness.transcriber.calls == 1 }
+        TestSupport.expectEqual(harness.recorder.liveSegments.map(\.speaker), [.them])
+        harness.play(them: [], me: silence(0.6))
+        await harness.settle { harness.transcriber.calls == 2 }
+        TestSupport.expectEqual(harness.recorder.liveSegments.map(\.speaker), [.them, .me])
+        await harness.recorder.stop()
+    }
+
+    @MainActor
+    private static func meUploadsRightAwayWhenThemWasQuiet() async {
+        let harness = Harness()
+        await harness.recorder.start()
+        let tone = MeetingTranscriptCoreTests.tone, silence = MeetingTranscriptCoreTests.silence
+        // Them stopped at 1 s, more than the 2.5 s echo reach before Me audio starts at 3.8 s.
+        harness.play(them: tone(1, 0.2) + silence(6.1), me: silence(4) + tone(1, 0.2) + silence(2.1))
+        await harness.settle { harness.transcriber.calls == 2 }
+        TestSupport.expectEqual(harness.recorder.liveSegments.map(\.speaker), [.them, .me])
+        await harness.recorder.stop()
     }
 
     @MainActor

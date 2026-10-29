@@ -22,7 +22,7 @@ enum MeetingTranscriptionPipelineTests {
     }
 
     private static func chunk(_ speaker: MeetingSpeaker, _ start: TimeInterval, seconds: Double = 1) -> MeetingAudioChunk {
-        MeetingAudioChunk(speaker: speaker, start: start, samples: MeetingTranscriptCoreTests.tone(seconds: seconds))
+        MeetingAudioChunk(speaker: speaker, start: start, audioStart: start, samples: MeetingTranscriptCoreTests.tone(seconds: seconds))
     }
 
     private static func sampleCount(ofWAV url: URL) throws -> Int {
@@ -43,7 +43,7 @@ enum MeetingTranscriptionPipelineTests {
 
     private static func silentChunkIsSkippedWithoutUpload() async {
         let mock = MockTranscriber { _ in "should not happen" }
-        let silent = MeetingAudioChunk(speaker: .me, start: 0, samples: MeetingTranscriptCoreTests.silence(seconds: 20))
+        let silent = MeetingAudioChunk(speaker: .me, start: 0, audioStart: 0, samples: MeetingTranscriptCoreTests.silence(seconds: 20))
         let segment = await MeetingTranscriptionQueue.transcribe(silent, using: mock, tempDirectory: tempDirectory())
         TestSupport.expect(segment == nil, "Silence produces no segment")
         TestSupport.expect(mock.calls.isEmpty, "Silence is never uploaded")
@@ -139,7 +139,7 @@ enum MeetingTranscriptionPipelineTests {
         queue.onSegmentsChange = { updates.append($0) }
         queue.enqueue(chunk(.me, 0, seconds: 1))
         queue.enqueue(chunk(.them, 0.5, seconds: 2))
-        queue.enqueue(MeetingAudioChunk(speaker: .them, start: 1, samples: MeetingTranscriptCoreTests.silence(seconds: 3)))
+        queue.enqueue(MeetingAudioChunk(speaker: .them, start: 1, audioStart: 1, samples: MeetingTranscriptCoreTests.silence(seconds: 3)))
         queue.enqueue(chunk(.me, 20, seconds: 4))
         TestSupport.expectEqual(queue.pendingCount, 4)
         await queue.drain()
