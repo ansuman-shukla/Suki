@@ -11,8 +11,6 @@ struct MeetingDetailContent: View {
     @State private var titleDraft = ""
     @FocusState private var isTitleFocused: Bool
 
-    private var turns: [MeetingTurn] { MeetingTranscriptCore.turns(meeting.segments) }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HubIconButton(systemName: "chevron.left", help: "Back to meetings", action: onBack)
@@ -40,7 +38,8 @@ struct MeetingDetailContent: View {
                         onRename: startRenaming,
                         onDelete: onDelete
                     )
-                    ForEach(turns) { MeetingTurnView(turn: $0) }
+                    MeetingTranscriptView(segments: meeting.segments)
+                        .equatable()
                 }
                 .padding(.top, 16)
                 .padding(.bottom, 40)
@@ -144,6 +143,18 @@ private struct TranscriptInfoBar: View {
         .padding(.trailing, 4)
         .frame(height: 34)
         .background(RoundedRectangle(cornerRadius: Radius.md, style: .continuous).fill(Theme.card))
+    }
+}
+
+/// Re-renders only when the segments change. Every app or recorder update re-evaluates the
+/// meeting page, and rebuilding hundreds of sentence bubbles each time made scrolling stutter.
+private struct MeetingTranscriptView: View, Equatable {
+    let segments: [MeetingSegment]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            ForEach(MeetingTranscriptCore.turns(segments)) { MeetingTurnView(turn: $0) }
+        }
     }
 }
 
