@@ -846,6 +846,14 @@ final class UpdateManager: ObservableObject {
             // Clean up DMG (detach happens in defer above, delete temp dir)
             try? fm.removeItem(at: tempDir)
 
+            do {
+                try UpdateSignatureVerifier.verify(appAt: stagedApp, satisfies: UpdateSignatureVerifier.currentRequirement())
+            } catch {
+                try? fm.removeItem(at: stagingDir)
+                updateStatus = .error(error.localizedDescription)
+                return
+            }
+
             // MARK: Replace & relaunch
             updateStatus = .readyToRelaunch
             replaceAndRelaunch(stagedApp: stagedApp, stagingDir: stagingDir)

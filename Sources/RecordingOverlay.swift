@@ -612,9 +612,10 @@ struct WingedRecordingView: View {
                             if state.showsRecordingTimer, let start = state.recordingStartedAt {
                                 RecordingElapsedTimeView(start: start)
                             } else {
-                                CompactWaveformView(
+                                WaveformView(
                                     audioLevel: state.audioLevel,
-                                    showsActivityPulse: true
+                                    showsActivityPulse: true,
+                                    metrics: .compact
                                 )
                             }
                         }
@@ -666,198 +667,84 @@ struct WingedRecordingView: View {
 
 // MARK: - Waveform Views
 
-struct WaveformBar: View {
-    let amplitude: CGFloat
+/// Bar sizing for one overlay slot; the lens shape and ripple come from `WaveformLayout`.
+struct WaveformMetrics {
+    let barWidth: CGFloat
+    let spacing: CGFloat
+    let minHeight: CGFloat
+    let maxHeight: CGFloat
+    let frameHeight: CGFloat
 
-    private let minHeight: CGFloat = 2
-    private let maxHeight: CGFloat = 22
-
-    var body: some View {
-        Capsule()
-            .fill(.white)
-            .frame(width: 3, height: minHeight + (maxHeight - minHeight) * amplitude)
-    }
+    static let regular = WaveformMetrics(barWidth: 3, spacing: 2, minHeight: 3, maxHeight: 22, frameHeight: 24)
+    /// Fits ten bars inside the 36pt notch wing.
+    static let compact = WaveformMetrics(barWidth: 1.5, spacing: 1.5, minHeight: 2, maxHeight: 14, frameHeight: 18)
 }
 
 struct WaveformView: View {
     let audioLevel: Float
     var showsActivityPulse = false
-
-    private static let barCount = 9
-    private static let multipliers: [CGFloat] = [0.35, 0.55, 0.75, 0.9, 1.0, 0.9, 0.75, 0.55, 0.35]
-    private static let centerIndex = CGFloat((barCount - 1) / 2)
+    var metrics = WaveformMetrics.regular
+    var layout = WaveformLayout.dictation
 
     var body: some View {
         Group {
             if showsActivityPulse {
                 TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { context in
-                    waveformBars(pulseTime: context.date.timeIntervalSinceReferenceDate)
+                    bars(time: context.date.timeIntervalSinceReferenceDate)
                 }
             } else {
-                waveformBars(pulseTime: nil)
+                bars(time: nil)
             }
         }
-        .frame(height: 24)
+        .frame(height: metrics.frameHeight)
     }
 
-    private func waveformBars(pulseTime: TimeInterval?) -> some View {
-        HStack(spacing: 2.5) {
-            ForEach(0..<Self.barCount, id: \.self) { index in
-                WaveformBar(amplitude: barAmplitude(for: index, pulseTime: pulseTime))
-                    .animation(
-                        .spring(
-                            response: barResponse(for: index),
-                            dampingFraction: 0.88
-                        )
-                        .delay(barDelay(for: index)),
-                        value: audioLevel
-                    )
+    private func bars(time: TimeInterval?) -> some View {
+        HStack(spacing: metrics.spacing) {
+            ForEach(0..<layout.barCount, id: \.self) { index in
+                Capsule()
+                    .fill(.white)
+                    .frame(width: metrics.barWidth, height: height(ofBar: index, time: time))
+                    .animation(.suki.delay(layout.rippleDelay(ofBar: index)), value: audioLevel)
             }
         }
     }
 
-    private func barAmplitude(for index: Int, pulseTime: TimeInterval?) -> CGFloat {
-        let level = CGFloat(max(audioLevel, 0))
-        let baseAmplitude = min(level * Self.multipliers[index], 1.0)
-
-        guard let pulseTime else { return baseAmplitude }
-
-        let travelingWave = CGFloat(0.5 + 0.5 * sin((pulseTime * 6.2) - Double(index) * 0.78))
-        let shimmer = CGFloat(0.5 + 0.5 * sin((pulseTime * 3.1) + Double(index) * 0.5))
-        let pulse = travelingWave * 0.22 + shimmer * 0.06
-
-        let saturationRelief = baseAmplitude * (0.74 + pulse)
-        let quietPulse = (1.0 - baseAmplitude) * (0.04 + pulse * 0.28)
-        return min(saturationRelief + quietPulse, 1.0)
-    }
-
-    private func barResponse(for index: Int) -> Double {
-        let distance = abs(CGFloat(index) - Self.centerIndex)
-        let normalizedDistance = distance / Self.centerIndex
-        return 0.18 + Double(normalizedDistance) * 0.06
-    }
-
-    private func barDelay(for index: Int) -> Double {
-        let distance = abs(CGFloat(index) - Self.centerIndex)
-        return Double(distance) * 0.01
+    private func height(ofBar index: Int, time: TimeInterval?) -> CGFloat {
+        let level = Double(audioLevel)
+        let animated = time.map { layout.breathingLevel(ofBar: index, level: level, time: $0) } ?? level
+        return layout.barHeight(ofBar: index, level: animated, minHeight: metrics.minHeight, maxHeight: metrics.maxHeight)
     }
 }
 
-/// Tighter 5-bar waveform sized for the 36pt wing layout.
-struct CompactWaveformView: View {
-    let audioLevel: Float
-    var showsActivityPulse = false
-
-    private static let barCount = 5
-    private static let multipliers: [CGFloat] = [0.5, 0.75, 1.0, 0.75, 0.5]
-    private static let centerIndex = CGFloat((barCount - 1) / 2)
-
-    var body: some View {
-        Group {
-            if showsActivityPulse {
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { context in
-                    bars(pulseTime: context.date.timeIntervalSinceReferenceDate)
-                }
-            } else {
-                bars(pulseTime: nil)
-            }
-        }
-        .frame(height: 18)
-    }
-
-    private func bars(pulseTime: TimeInterval?) -> some View {
-        HStack(spacing: 1.5) {
-            ForEach(0..<Self.barCount, id: \.self) { index in
-                CompactWaveformBar(amplitude: amplitude(for: index, pulseTime: pulseTime))
-                    .animation(
-                        .spring(response: 0.18, dampingFraction: 0.88),
-                        value: audioLevel
-                    )
-            }
-        }
-    }
-
-    private func amplitude(for index: Int, pulseTime: TimeInterval?) -> CGFloat {
-        let level = CGFloat(max(audioLevel, 0))
-        let base = min(level * Self.multipliers[index], 1.0)
-        guard let pulseTime else { return base }
-        let traveling = CGFloat(0.5 + 0.5 * sin((pulseTime * 6.2) - Double(index) * 0.78))
-        let shimmer = CGFloat(0.5 + 0.5 * sin((pulseTime * 3.1) + Double(index) * 0.5))
-        let pulse = traveling * 0.22 + shimmer * 0.06
-        let saturationRelief = base * (0.74 + pulse)
-        let quietPulse = (1.0 - base) * (0.04 + pulse * 0.28)
-        return min(saturationRelief + quietPulse, 1.0)
-    }
-}
-
-struct CompactWaveformBar: View {
-    let amplitude: CGFloat
-    private let minHeight: CGFloat = 2
-    private let maxHeight: CGFloat = 14
-
-    var body: some View {
-        Capsule()
-            .fill(.white)
-            .frame(width: 2, height: minHeight + (maxHeight - minHeight) * amplitude)
-    }
-}
-
+/// The recording bars at rest with a soft highlight sweeping across them.
 struct ProcessingWaveformView: View {
-    private static let barCount = 5
-    private static let centerIndex = CGFloat((barCount - 1) / 2)
+    var metrics = WaveformMetrics.regular
+    var layout = WaveformLayout.dictation
+
+    private static let restingLevel = 0.18
+    private static let highlightLift = 0.22
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { context in
             let time = context.date.timeIntervalSinceReferenceDate
-
-            HStack(spacing: 4) {
-                ForEach(0..<Self.barCount, id: \.self) { index in
-                    ProcessingPill(
-                        amplitude: amplitude(for: index, time: time),
-                        opacity: opacity(for: index, time: time)
-                    )
+            HStack(spacing: metrics.spacing) {
+                ForEach(0..<layout.barCount, id: \.self) { index in
+                    let highlight = layout.shimmer(ofBar: index, time: time)
+                    Capsule()
+                        .fill(.white)
+                        .frame(width: metrics.barWidth, height: layout.barHeight(
+                            ofBar: index,
+                            level: Self.restingLevel + highlight * Self.highlightLift,
+                            minHeight: metrics.minHeight,
+                            maxHeight: metrics.maxHeight
+                        ))
+                        .opacity(0.4 + highlight * 0.55)
                 }
             }
-            .frame(height: 20)
+            .frame(height: metrics.frameHeight)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func phase(for index: Int, time: TimeInterval) -> Double {
-        let cycle = 1.05
-        let stagger = 0.11
-        return ((time - Double(index) * stagger).truncatingRemainder(dividingBy: cycle)) / cycle
-    }
-
-    private func pulse(for index: Int, time: TimeInterval) -> CGFloat {
-        let phase = phase(for: index, time: time)
-        let wave = 0.5 + 0.5 * sin((phase * 2.0 * .pi) - (.pi / 2.0))
-        return CGFloat(pow(wave, 1.9))
-    }
-
-    private func amplitude(for index: Int, time: TimeInterval) -> CGFloat {
-        let centerDistance = abs(CGFloat(index) - Self.centerIndex) / Self.centerIndex
-        let baseline = 0.18 + (1.0 - centerDistance) * 0.1
-        return min(baseline + pulse(for: index, time: time) * 0.68, 1.0)
-    }
-
-    private func opacity(for index: Int, time: TimeInterval) -> CGFloat {
-        0.42 + pulse(for: index, time: time) * 0.52
-    }
-}
-
-private struct ProcessingPill: View {
-    let amplitude: CGFloat
-    let opacity: CGFloat
-
-    private let minHeight: CGFloat = 4
-    private let maxHeight: CGFloat = 18
-
-    var body: some View {
-        Capsule()
-            .fill(.white)
-            .frame(width: 4, height: minHeight + (maxHeight - minHeight) * amplitude)
-            .opacity(opacity)
     }
 }
 
@@ -926,7 +813,7 @@ struct CompactProcessingIndicatorView: View {
                         }
                     }
             } else {
-                CompactProcessingWaveformView()
+                ProcessingWaveformView(metrics: .compact)
                     .transition(.opacity)
             }
         }
@@ -940,64 +827,6 @@ struct CompactProcessingIndicatorView: View {
                 }
             } catch {}
         }
-    }
-}
-
-struct CompactProcessingWaveformView: View {
-    private static let barCount = 5
-    private static let centerIndex = CGFloat((barCount - 1) / 2)
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { context in
-            let time = context.date.timeIntervalSinceReferenceDate
-            HStack(spacing: 2) {
-                ForEach(0..<Self.barCount, id: \.self) { index in
-                    CompactProcessingPill(
-                        amplitude: amplitude(for: index, time: time),
-                        opacity: opacity(for: index, time: time)
-                    )
-                }
-            }
-            .frame(height: 18)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func phase(for index: Int, time: TimeInterval) -> Double {
-        let cycle = 1.05
-        let stagger = 0.11
-        return ((time - Double(index) * stagger).truncatingRemainder(dividingBy: cycle)) / cycle
-    }
-
-    private func pulse(for index: Int, time: TimeInterval) -> CGFloat {
-        let phase = phase(for: index, time: time)
-        let wave = 0.5 + 0.5 * sin((phase * 2.0 * .pi) - (.pi / 2.0))
-        return CGFloat(pow(wave, 1.9))
-    }
-
-    private func amplitude(for index: Int, time: TimeInterval) -> CGFloat {
-        let centerDistance = abs(CGFloat(index) - Self.centerIndex) / Self.centerIndex
-        let baseline = 0.18 + (1.0 - centerDistance) * 0.1
-        return min(baseline + pulse(for: index, time: time) * 0.68, 1.0)
-    }
-
-    private func opacity(for index: Int, time: TimeInterval) -> CGFloat {
-        0.42 + pulse(for: index, time: time) * 0.52
-    }
-}
-
-private struct CompactProcessingPill: View {
-    let amplitude: CGFloat
-    let opacity: CGFloat
-
-    private let minHeight: CGFloat = 2
-    private let maxHeight: CGFloat = 12
-
-    var body: some View {
-        Capsule()
-            .fill(.white)
-            .frame(width: 2, height: minHeight + (maxHeight - minHeight) * amplitude)
-            .opacity(opacity)
     }
 }
 

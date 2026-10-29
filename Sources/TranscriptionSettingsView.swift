@@ -12,22 +12,24 @@ struct TranscriptionSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Picker("Provider", selection: $appState.transcriptionProvider) {
-                ForEach(TranscriptionProvider.allCases) { provider in
-                    Text(provider.displayName).tag(provider)
-                }
+            HStack {
+                Text("Provider")
+                    .font(.caption.weight(.semibold))
+                Spacer()
+                SettingsPickerMenu(
+                    "Transcription Provider",
+                    selection: $appState.transcriptionProvider,
+                    options: TranscriptionProvider.allCases,
+                    label: \.displayName
+                )
             }
-            .pickerStyle(.segmented)
 
-            if let credential = provider.credential {
-                ProviderAPIKeyField(provider: credential) { key in
-                    await Self.validate(key, for: credential)
-                }
-            } else {
-                Text("Uses the API key and endpoint from API Key settings (Groq by default).")
+            if provider == .custom {
+                Text("Any OpenAI-compatible /audio/transcriptions endpoint. Live transcription's Custom option uses it too.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            TranscriptionCredentialFields()
 
             ModelDropdownView(
                 title: "Transcription Model",
@@ -41,6 +43,15 @@ struct TranscriptionSettingsView: View {
                     appState.transcriptionModel = provider.defaultModel
                 }
             )
+            .id(provider)
+
+            AsyncTestButton(
+                title: "Test model",
+                successMessage: "\(appState.transcriptionConfiguration.model) works with \(provider.displayName)"
+            ) {
+                commitModel()
+                return await TranscriptionModelTest.run(appState.transcriptionConfiguration)
+            }
             .id(provider)
 
             VStack(alignment: .leading, spacing: 6) {
@@ -67,18 +78,5 @@ struct TranscriptionSettingsView: View {
         modelDraft = trimmed
         guard appState.transcriptionModel != trimmed else { return }
         appState.transcriptionModel = trimmed
-    }
-
-    private static func validate(_ key: String, for provider: CloudSpeechProvider) async -> Result<Void, Error> {
-        let valid: Bool
-        switch provider {
-        case .openAI:
-            valid = await TranscriptionService.validateAPIKey(key, baseURL: TranscriptionProvider.openAIBaseURL)
-        case .gemini:
-            valid = await GeminiTranscriptionService.validateAPIKey(key)
-        }
-        return valid
-            ? .success(())
-            : .failure(TranscriptionError.submissionFailed("\(provider.displayName) rejected this API key."))
     }
 }

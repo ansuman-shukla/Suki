@@ -32,6 +32,20 @@ enum LiveTranscriptionSessionFactory {
                 model: configuration.model,
                 language: configuration.language
             )
+        case .xAI:
+            return StreamingSTTSession(dialect: .xAI(
+                apiKey: configuration.apiKey,
+                model: configuration.model,
+                language: configuration.language,
+                sampleRate: StreamingSTTSession.inputSampleRate
+            ))
+        case .deepgram:
+            return StreamingSTTSession(dialect: .deepgram(
+                apiKey: configuration.apiKey,
+                model: configuration.model,
+                language: configuration.language,
+                sampleRate: StreamingSTTSession.inputSampleRate
+            ))
         case .openAI, .custom:
             return RealtimeTranscriptionService(config: .init(
                 baseURL: configuration.baseURL,
@@ -80,5 +94,16 @@ enum LiveTranscriptText {
     /// should not start with one.
     static func trimmingLeadingWhitespace(_ text: String) -> String {
         String(text.drop(while: { $0.isWhitespace }))
+    }
+
+    /// Appends a transcript segment, adding a space only when neither side has one.
+    static func join(_ head: String, _ tail: String) -> String {
+        let tail = tail.trimmingCharacters(in: .newlines)
+        guard !tail.trimmingCharacters(in: .whitespaces).isEmpty else { return head }
+        guard !head.isEmpty else { return trimmingLeadingWhitespace(tail) }
+        if head.last?.isWhitespace == true || tail.first?.isWhitespace == true {
+            return head + tail
+        }
+        return head + " " + tail
     }
 }

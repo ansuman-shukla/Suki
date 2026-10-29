@@ -2,10 +2,16 @@ import SwiftUI
 
 struct MenuBarView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var meetingRecorder: MeetingRecorder
     @ObservedObject private var updateManager = UpdateManager.shared
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    private var meetingMenuTitle: String {
+        let title = meetingRecorder.isActive ? "Stop Meeting" : "Record Meeting"
+        return appState.meetingShortcut.isDisabled ? title : "\(title)  (\(appState.meetingShortcut.displayName))"
     }
 
     private var recentHistoryItems: [PipelineHistoryItem] {
@@ -117,6 +123,15 @@ struct MenuBarView: View {
                 appState.toggleRecording()
             }
             .disabled(appState.isTranscribing)
+
+            Button(meetingMenuTitle) {
+                NotificationCenter.default.post(name: .showHub, object: HubSection.meetings)
+                Task { await meetingRecorder.toggle() }
+            }
+            .disabled(
+                meetingRecorder.phase == .starting || meetingRecorder.phase == .finishing
+                    || (!meetingRecorder.isActive && appState.isRecording)
+            )
 
             if let hotkeyError = appState.hotkeyMonitoringErrorMessage {
                 Divider()
@@ -341,6 +356,10 @@ struct MenuBarView: View {
                         }
                     }
                 }
+            }
+
+            Button("Open \(AppName.displayName)") {
+                NotificationCenter.default.post(name: .showHub, object: nil)
             }
 
             Button("Re-run Setup...") {

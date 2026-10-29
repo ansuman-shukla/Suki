@@ -18,6 +18,7 @@ struct ShortcutInputState: Equatable {
     var holdIsActive = false
     var toggleIsActive = false
     var copyAgainIsActive = false
+    var meetingIsActive = false
 
     var currentModifiers: ShortcutModifiers {
         ShortcutBinding.modifiers(for: pressedModifierKeyCodes)
@@ -25,41 +26,21 @@ struct ShortcutInputState: Equatable {
 
     func hasPressedShortcutInputs(configuration: ShortcutConfiguration) -> Bool {
         let currentModifiers = currentModifiers
+        let bindings = configuration.allBindings
         let keyReferenceHeld = pressedKeyCodes.contains { keyCode in
-            let isHoldKey = configuration.hold.kind == .key && configuration.hold.keyCode == keyCode
-            let isToggleKey = configuration.toggle.kind == .key && configuration.toggle.keyCode == keyCode
-            let isCopyAgainKey = configuration.copyAgain.kind == .key && configuration.copyAgain.keyCode == keyCode
-            return isHoldKey || isToggleKey || isCopyAgainKey
+            bindings.contains { $0.kind == .key && $0.keyCode == keyCode }
         }
         if keyReferenceHeld {
             return true
         }
 
-        if configuration.hold.referencesPressedModifiers(
-            pressedModifierKeyCodes: pressedModifierKeyCodes,
-            currentModifiers: currentModifiers,
-            permittedAdditionalExactMatchModifiers: configuration.permittedAdditionalExactMatchModifiers
-        ) {
-            return true
+        return bindings.contains {
+            $0.referencesPressedModifiers(
+                pressedModifierKeyCodes: pressedModifierKeyCodes,
+                currentModifiers: currentModifiers,
+                permittedAdditionalExactMatchModifiers: configuration.permittedAdditionalExactMatchModifiers
+            )
         }
-
-        if configuration.toggle.referencesPressedModifiers(
-            pressedModifierKeyCodes: pressedModifierKeyCodes,
-            currentModifiers: currentModifiers,
-            permittedAdditionalExactMatchModifiers: configuration.permittedAdditionalExactMatchModifiers
-        ) {
-            return true
-        }
-
-        if configuration.copyAgain.referencesPressedModifiers(
-            pressedModifierKeyCodes: pressedModifierKeyCodes,
-            currentModifiers: currentModifiers,
-            permittedAdditionalExactMatchModifiers: configuration.permittedAdditionalExactMatchModifiers
-        ) {
-            return true
-        }
-
-        return false
     }
 }
 
@@ -174,18 +155,22 @@ enum ShortcutMatcher {
         let previousHold = state.holdIsActive
         let previousToggle = state.toggleIsActive
         let previousCopyAgain = state.copyAgainIsActive
+        let previousMeeting = state.meetingIsActive
 
         state.holdIsActive = bindingIsActive(configuration.hold, state: state, configuration: configuration)
         state.toggleIsActive = bindingIsActive(configuration.toggle, state: state, configuration: configuration)
         state.copyAgainIsActive = bindingIsActive(configuration.copyAgain, state: state, configuration: configuration)
+        state.meetingIsActive = bindingIsActive(configuration.meeting, state: state, configuration: configuration)
 
         return emitChanges(
             previousHold: previousHold,
             previousToggle: previousToggle,
             previousCopyAgain: previousCopyAgain,
+            previousMeeting: previousMeeting,
             currentHold: state.holdIsActive,
             currentToggle: state.toggleIsActive,
             currentCopyAgain: state.copyAgainIsActive,
+            currentMeeting: state.meetingIsActive,
             configuration: configuration
         )
     }
@@ -194,9 +179,11 @@ enum ShortcutMatcher {
         previousHold: Bool,
         previousToggle: Bool,
         previousCopyAgain: Bool,
+        previousMeeting: Bool,
         currentHold: Bool,
         currentToggle: Bool,
         currentCopyAgain: Bool,
+        currentMeeting: Bool,
         configuration: ShortcutConfiguration
     ) -> [ShortcutEvent] {
         var activations: [(ShortcutEvent, Int)] = []
@@ -211,6 +198,9 @@ enum ShortcutMatcher {
         // Paste Again is a one-shot: fire on the leading edge only.
         if !previousCopyAgain && currentCopyAgain {
             activations.append((.copyAgainTriggered, configuration.copyAgain.specificityScore))
+        }
+        if !previousMeeting && currentMeeting {
+            activations.append((.meetingToggleTriggered, configuration.meeting.specificityScore))
         }
         if previousHold && !currentHold {
             deactivations.append((.holdDeactivated, configuration.hold.specificityScore))
@@ -273,7 +263,7 @@ enum ShortcutMatcher {
         for keyCode: UInt16,
         configuration: ShortcutConfiguration
     ) -> [ShortcutBinding] {
-        [configuration.hold, configuration.toggle, configuration.copyAgain].filter { binding in
+        configuration.allBindings.filter { binding in
             binding.kind == .key && binding.keyCode == keyCode
         }
     }
@@ -282,7 +272,7 @@ enum ShortcutMatcher {
         for keyCode: UInt16,
         configuration: ShortcutConfiguration
     ) -> [ShortcutBinding] {
-        [configuration.hold, configuration.toggle, configuration.copyAgain].filter { binding in
+        configuration.allBindings.filter { binding in
             switch binding.kind {
             case .key, .modifierKey:
                 return modifierEvent(for: keyCode, affects: binding)
