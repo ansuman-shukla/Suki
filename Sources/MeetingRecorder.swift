@@ -22,7 +22,11 @@ final class MeetingRecorder: ObservableObject {
     private let makeTranscriber: () throws -> SpeechToTextService
     private let makeSources: () throws -> [MeetingAudioSource]
     private let authorizeMicrophone: () async -> Bool
+    private let callAppsUsingMicrophone: () -> Set<String>
     private let copyToClipboard: @MainActor (String) -> Void
+    private let makeEchoGate: () -> any MeetingEchoFiltering
+    private let sleepNotifications: NotificationCenter
+    private let autoStopCheckInterval: TimeInterval
     private let now: () -> Date
     private var sources: [MeetingAudioSource] = []
     private var queue: MeetingTranscriptionQueue?
@@ -31,21 +35,39 @@ final class MeetingRecorder: ObservableObject {
     private var receivedSamples: [MeetingSpeaker: Int] = [:]
     private var peakRMS: [MeetingSpeaker: Float] = [:]
     private var micWatchdog = MeetingMicWatchdog()
+    private var echoGate: any MeetingEchoFiltering = MeetingEchoGate()
+    /// Me chunks wait `MeetingEchoGate.decisionSeconds` so a lock found after they were cut still covers them.
+    private var heldMeChunks: [MeetingAudioChunk] = []
+    private var echoDroppedChunks = 0
     private var toastTask: Task<Void, Never>?
+    private var autoStopPolicy = MeetingAutoStopPolicy()
+    private var autoStopTimer: Timer?
+    private var sleepObserver: NSObjectProtocol?
+
+    /// The periodic auto-stop check or the sleep observer is installed.
+    var isWatchingForAutoStop: Bool { autoStopTimer != nil || sleepObserver != nil }
 
     init(
         store: MeetingStore = MeetingStore(),
         makeTranscriber: @escaping () throws -> SpeechToTextService,
         makeSources: @escaping () throws -> [MeetingAudioSource],
         authorizeMicrophone: @escaping () async -> Bool = MeetingRecorder.authorizeMicrophone,
+        callAppsUsingMicrophone: @escaping () -> Set<String>,
         copyToClipboard: @escaping @MainActor (String) -> Void = MeetingRecorder.copyToClipboard,
+        makeEchoGate: @escaping () -> any MeetingEchoFiltering = { MeetingEchoGate() },
+        sleepNotifications: NotificationCenter = NSWorkspace.shared.notificationCenter,
+        autoStopCheckInterval: TimeInterval = 2,
         now: @escaping () -> Date = Date.init
     ) {
         self.store = store
         self.makeTranscriber = makeTranscriber
         self.makeSources = makeSources
         self.authorizeMicrophone = authorizeMicrophone
+        self.callAppsUsingMicrophone = callAppsUsingMicrophone
         self.copyToClipboard = copyToClipboard
+        self.makeEchoGate = makeEchoGate
+        self.sleepNotifications = sleepNotifications
+        self.autoStopCheckInterval = autoStopCheckInterval
         self.now = now
         meetings = store.loadAll()
     }
@@ -70,6 +92,7 @@ final class MeetingRecorder: ObservableObject {
             queue.onSegmentsChange = { [weak self] in self?.liveSegments = MeetingTranscriptCore.merged($0) }
             self.queue = queue
             buffers = Dictionary(uniqueKeysWithValues: MeetingSpeaker.allCases.map { ($0, MeetingChunkBuffer(speaker: $0)) })
+            echoGate = makeEchoGate()
             liveSegments = []
             let startedAt = now()
             self.startedAt = startedAt
@@ -78,6 +101,7 @@ final class MeetingRecorder: ObservableObject {
                 try startCapture(source, startedAt: startedAt)
             }
             phase = .recording
+            watchForAutoStop()
             os_log(.info, log: meetingLog, "Meeting started with sources: %{public}@",
                    sources.map(\.speaker.rawValue).joined(separator: ","))
         } catch {
@@ -90,14 +114,38 @@ final class MeetingRecorder: ObservableObject {
     }
 
     func stop() async {
+        await finish(autoStopReason: nil)
+    }
+
+    /// Stops by itself: saves like a manual stop, but shows why instead of copying the transcript.
+    func autoStop(_ reason: MeetingAutoStopReason) async {
+        guard phase == .recording else { return }
+        os_log(.info, log: meetingLog, "Meeting auto-stopped: %{public}@", reason.rawValue)
+        await finish(autoStopReason: reason)
+    }
+
+    /// Applies the auto-stop rules once. Runs every couple of seconds while recording.
+    func checkAutoStop() async {
+        guard phase == .recording, let startedAt else { return }
+        guard let reason = autoStopPolicy.update(
+            elapsed: now().timeIntervalSince(startedAt),
+            callApps: callAppsUsingMicrophone(),
+            lastSpeechTime: buffers.values.compactMap(\.lastSpeechTime).max()
+        ) else { return }
+        await autoStop(reason)
+    }
+
+    private func finish(autoStopReason: MeetingAutoStopReason?) async {
         guard phase == .recording, let startedAt, let queue else { return }
         phase = .finishing
+        stopWatchingForAutoStop()
         sources.forEach { $0.stop() }
         sources = []
         let duration = now().timeIntervalSince(startedAt)
         for speaker in MeetingSpeaker.allCases {
-            if let chunk = buffers[speaker]?.flush() { queue.enqueue(chunk) }
+            if let chunk = buffers[speaker]?.flush() { enqueue(chunk) }
         }
+        releaseHeldMeChunks(through: .infinity)
         await queue.drain()
         let segments = queue.segments.sorted { $0.start < $1.start }
         for speaker in MeetingSpeaker.allCases {
@@ -105,6 +153,9 @@ final class MeetingRecorder: ObservableObject {
                    duration, speaker.rawValue,
                    Double(receivedSamples[speaker] ?? 0) / MeetingTranscriptCore.sampleRate, peakRMS[speaker] ?? 0)
         }
+        let echo = echoGate.stats
+        os_log(.info, log: meetingLog, "Meeting echo gate: %d analyses, %d frozen, %d locked, %d suppressed, %d enveloped, %d me chunks dropped",
+               echo.analyses, echo.frozen, echo.locked, echo.suppressed, echo.enveloped, echoDroppedChunks)
         os_log(.info, log: meetingLog, "Meeting produced %d segments", segments.count)
         reset()
         guard !segments.isEmpty else {
@@ -118,11 +169,12 @@ final class MeetingRecorder: ObservableObject {
             segments: segments
         )
         meetings.insert(meeting, at: 0)
-        copy(meeting)
+        if autoStopReason == nil { copy(meeting) }
         do {
             try store.save(meeting)
+            if let autoStopReason { showToast(autoStopReason.notice) }
         } catch {
-            errorMessage = "Copied, but couldn't save this meeting."
+            errorMessage = autoStopReason == nil ? "Copied, but couldn't save this meeting." : "Couldn't save this meeting."
         }
     }
 
@@ -164,11 +216,37 @@ final class MeetingRecorder: ObservableObject {
         levels[speaker] = MeetingTranscriptCore.displayLevel(rms: rms)
         let loudest = levels.values.max() ?? 0
         if abs(loudest - level) > 0.02 { level = loudest }
+        echoGate.append(samples, from: speaker, arrival: arrival)
         let otherSpeechTime = buffers.filter { $0.key != speaker }.compactMap(\.value.lastSpeechTime).max()
         for chunk in buffers[speaker]?.append(samples, arrival: arrival, otherSpeechTime: otherSpeechTime) ?? [] {
-            queue?.enqueue(chunk)
+            enqueue(chunk)
         }
+        releaseHeldMeChunks(through: arrival)
         if speaker == .me { watchMicrophone(samples) }
+    }
+
+    /// Them chunks upload right away. Me chunks the other side may have echoed into wait for the
+    /// echo gate to decide; with the other side quiet since before the chunk, there is nothing to cancel.
+    private func enqueue(_ chunk: MeetingAudioChunk) {
+        let farEndSpoke = (buffers[.them]?.lastSpeechTime ?? -.infinity) > chunk.audioStart - MeetingEchoGate.echoReachSeconds
+        guard chunk.speaker == .me, farEndSpoke || !heldMeChunks.isEmpty else { return queue?.enqueue(chunk) ?? () }
+        heldMeChunks.append(chunk)
+    }
+
+    /// Uploads held Me chunks that ended `MeetingEchoGate.decisionSeconds` before `time`,
+    /// with speaker echo silenced. Chunks left with no real speech are dropped.
+    private func releaseHeldMeChunks(through time: TimeInterval) {
+        while let chunk = heldMeChunks.first,
+              chunk.audioStart + chunk.duration + MeetingEchoGate.decisionSeconds <= time {
+            heldMeChunks.removeFirst()
+            let span = chunk.audioStart...(chunk.audioStart + chunk.duration)
+            guard let kept = chunk.removingEcho(echoGate.echoIntervals(overlapping: span)) else {
+                echoDroppedChunks += 1
+                os_log(.info, log: meetingLog, "me chunk %.1fs dropped as echo", chunk.duration)
+                continue
+            }
+            queue?.enqueue(kept)
+        }
     }
 
     private func startCapture(_ source: MeetingAudioSource, startedAt: Date) throws {
@@ -199,10 +277,39 @@ final class MeetingRecorder: ObservableObject {
         }
     }
 
+    private func watchForAutoStop() {
+        let timer = Timer(timeInterval: autoStopCheckInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                Task { await self.checkAutoStop() }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        autoStopTimer = timer
+        sleepObserver = sleepNotifications.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                Task { await self.autoStop(.systemSleep) }
+            }
+        }
+    }
+
+    private func stopWatchingForAutoStop() {
+        autoStopTimer?.invalidate()
+        autoStopTimer = nil
+        if let sleepObserver { sleepNotifications.removeObserver(sleepObserver) }
+        sleepObserver = nil
+        autoStopPolicy = MeetingAutoStopPolicy()
+    }
+
     private func reset() {
         sources = []
         queue = nil
         buffers = [:]
+        heldMeChunks = []
+        echoDroppedChunks = 0
         levels = [:]
         receivedSamples = [:]
         peakRMS = [:]

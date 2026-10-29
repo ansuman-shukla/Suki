@@ -291,6 +291,18 @@ struct SetupView: View {
             .background(Color(nsColor: .controlBackgroundColor))
             .cornerRadius(8)
 
+            if !accessibilityGranted {
+                HStack(spacing: 4) {
+                    Text("Already switched on in System Settings?")
+                        .foregroundStyle(.secondary)
+                    Button("Repair") {
+                        appState.repairPermission(.accessibility)
+                    }
+                    .buttonStyle(.link)
+                }
+                .font(.callout)
+            }
+
         }
         .onAppear {
             startAccessibilityPolling()

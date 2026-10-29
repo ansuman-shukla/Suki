@@ -38,9 +38,12 @@ struct SukiTests {
         MeetingsMCPServerTests.run()
         MeetingAudioCaptureTests.run()
         MeetingMicWatchdogTests.run()
+        MeetingEchoGateTests.run()
+        MeetingAutoStopCoreTests.run()
         await MeetingTranscriptionPipelineTests.run()
         await MeetingRecorderTests.run()
         SyntheticKeystrokeTyperTests.run()
+        PermissionRepairTests.run()
         print("SukiTests passed")
     }
 }

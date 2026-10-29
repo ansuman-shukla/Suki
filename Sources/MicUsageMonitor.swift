@@ -2,7 +2,8 @@ import CoreAudio
 import Foundation
 
 /// Lists call apps currently capturing from a microphone by reading Core Audio process objects.
-/// Needs no permission. Results only feed the meeting prompt; they are never logged or stored.
+/// Needs no permission. Results only feed the meeting prompt and the call-ended auto-stop;
+/// they are never logged or stored.
 @available(macOS 14.2, *)
 enum MicUsageMonitor {
     static func callAppsUsingMicrophone(excludingPID ownPID: pid_t = getpid()) -> Set<String> {

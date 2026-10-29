@@ -52,10 +52,12 @@ struct MeetingRecord: Codable, Equatable, Identifiable {
 }
 
 /// A mono 16 kHz slice of one speaker's audio, cut from the live stream.
-/// `start` is when the speech in it begins; `samples` may open with a short quiet lead-in.
+/// `start` is when the speech in it begins; `samples` may open with a short quiet lead-in,
+/// so `audioStart` is when the first sample was heard. Both are seconds since the meeting began.
 struct MeetingAudioChunk: Equatable {
     let speaker: MeetingSpeaker
     let start: TimeInterval
+    let audioStart: TimeInterval
     let samples: [Float]
 
     var duration: TimeInterval { Double(samples.count) / MeetingTranscriptCore.sampleRate }
@@ -118,9 +120,11 @@ enum MeetingTranscriptCore {
 
     /// Like `merged`, but keeps each speaker's sentences apart so they can render as separate bubbles.
     static func turns(_ segments: [MeetingSegment]) -> [MeetingTurn] {
+        // Creating an NLTokenizer costs far more than tokenizing one segment, so share one per call.
+        let tokenizer = NLTokenizer(unit: .sentence)
         var result: [MeetingTurn] = []
         for segment in ordered(segments) {
-            let parts = sentences(in: segment.text)
+            let parts = sentences(in: segment.text, using: tokenizer)
             guard !parts.isEmpty else { continue }
             if let last = result.last, last.speaker == segment.speaker {
                 result[result.count - 1].sentences += parts
@@ -131,8 +135,7 @@ enum MeetingTranscriptCore {
         return result
     }
 
-    static func sentences(in text: String) -> [String] {
-        let tokenizer = NLTokenizer(unit: .sentence)
+    static func sentences(in text: String, using tokenizer: NLTokenizer = NLTokenizer(unit: .sentence)) -> [String] {
         tokenizer.string = text
         return tokenizer.tokens(for: text.startIndex..<text.endIndex)
             .map { text[$0].trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -302,6 +305,8 @@ struct MeetingChunkBuffer {
     /// Whole windows: the lead-in while idle, otherwise the current utterance.
     private var pending: [Float] = []
     private var onset: TimeInterval?
+    /// When the first sample of `pending` was heard, set with `onset`.
+    private var audioStart: TimeInterval?
     private var voicedWindows = 0
     private var quietRun = 0
 
@@ -365,6 +370,9 @@ struct MeetingChunkBuffer {
             pending.removeFirst(max(0, pending.count - leadInWindows * windowSize))
             return nil
         }
+        if self.onset == nil {
+            audioStart = time - Double(pending.count - window.count) / MeetingTranscriptCore.sampleRate
+        }
         self.onset = onset
         if isVoiced {
             voicedWindows += 1
@@ -398,12 +406,18 @@ struct MeetingChunkBuffer {
     private func cut() -> MeetingAudioChunk? {
         guard let onset else { return nil }
         let trailingQuiet = max(0, quietRun - pauseWindows) * windowSize
-        return MeetingAudioChunk(speaker: speaker, start: onset, samples: Array(pending.dropLast(trailingQuiet)))
+        return MeetingAudioChunk(
+            speaker: speaker,
+            start: onset,
+            audioStart: audioStart ?? onset,
+            samples: Array(pending.dropLast(trailingQuiet))
+        )
     }
 
     private mutating func endUtterance(keepingWindows windows: Int) {
         pending.removeFirst(max(0, pending.count - windows * windowSize))
         onset = nil
+        audioStart = nil
         voicedWindows = 0
         quietRun = 0
     }

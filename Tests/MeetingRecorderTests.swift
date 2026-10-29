@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 private final class FakeSource: MeetingAudioSource {
     let speaker: MeetingSpeaker
@@ -39,6 +39,18 @@ private final class EchoTranscriber: SpeechToTextService {
     }
 }
 
+/// Marks whatever the test says is echo, so recorder behavior doesn't depend on signal analysis.
+private struct ScriptedEchoGate: MeetingEchoFiltering {
+    let intervals: () -> [ClosedRange<TimeInterval>]
+    var stats = MeetingEchoGate.Stats()
+
+    mutating func append(_ samples: [Float], from speaker: MeetingSpeaker, arrival: TimeInterval) {}
+
+    func echoIntervals(overlapping range: ClosedRange<TimeInterval>) -> [ClosedRange<TimeInterval>] {
+        intervals().filter { $0.overlaps(range) }
+    }
+}
+
 @MainActor
 private final class Harness {
     let me = FakeSource(.me)
@@ -51,6 +63,11 @@ private final class Harness {
     var sourcesError: Error?
     var micAllowed = true
     var micAsked = 0
+    var callApps: Set<String> = []
+    let sleepNotifications = NotificationCenter()
+    /// Long enough that the real timer never fires mid-test unless a test asks for it.
+    var autoStopCheckInterval: TimeInterval = 3_600
+    var echo: [ClosedRange<TimeInterval>] = []
     lazy var store = MeetingStore(directory: directory)
     lazy var recorder = MeetingRecorder(
         store: store,
@@ -66,7 +83,11 @@ private final class Harness {
             micAsked += 1
             return micAllowed
         },
+        callAppsUsingMicrophone: { [unowned self] in callApps },
         copyToClipboard: { [unowned self] in copied.append($0) },
+        makeEchoGate: { [unowned self] in ScriptedEchoGate(intervals: { [unowned self] in echo }) },
+        sleepNotifications: sleepNotifications,
+        autoStopCheckInterval: autoStopCheckInterval,
         now: { [unowned self] in clock }
     )
 
@@ -109,6 +130,226 @@ enum MeetingRecorderTests {
         await renameFailureKeepsOldTitle()
         await conversationKeepsSpeakingOrder()
         await quickRepliesStayInterleaved()
+        await callEndedAutoStopSavesWithoutCopying()
+        await silenceAutoStopFollowsLatestSpeaker()
+        await silentAutoStopKeepsNoSpeechError()
+        await sleepAutoStopSavesWithoutCopying()
+        await hardCapStopsALongMeeting()
+        await autoStopSaveFailureSaysSo()
+        await timerRunsTheAutoStopCheck()
+        await echoOnlyMeChunkIsDropped()
+        await echoAtTheStartOfMeIsTrimmed()
+        await meWaitsForTheEchoGateWhileThemTalks()
+        await meUploadsRightAwayWhenThemWasQuiet()
+    }
+
+    private static func tone(_ seconds: Double) -> [Float] { MeetingTranscriptCoreTests.tone(seconds: seconds) }
+    private static func silence(_ seconds: Double) -> [Float] { MeetingTranscriptCoreTests.silence(seconds: seconds) }
+    /// Quiet room noise: below the speech threshold, but not the exact zeros of a blanked mic.
+    private static func room(_ seconds: Double) -> [Float] { MeetingTranscriptCoreTests.tone(seconds: seconds, amplitude: 0.001) }
+
+    @MainActor
+    private static func expectAutoSaved(_ harness: Harness, notice: String, duration: TimeInterval, speakers: [MeetingSpeaker]) {
+        let recorder = harness.recorder
+        TestSupport.expectEqual(recorder.phase, .idle)
+        TestSupport.expectEqual(harness.me.stopCount, 1)
+        TestSupport.expectEqual(harness.them.stopCount, 1)
+        TestSupport.expect(harness.copied.isEmpty, "Auto-stop never touches the clipboard")
+        TestSupport.expectEqual(recorder.toast, notice)
+        TestSupport.expect(recorder.errorMessage == nil, "A good auto-stopped meeting has no error")
+        TestSupport.expect(!recorder.isWatchingForAutoStop, "Auto-stop watching ends with the recording")
+        let saved = harness.store.loadAll()
+        TestSupport.expectEqual(saved.count, 1)
+        TestSupport.expectEqual(recorder.meetings, saved)
+        TestSupport.expectEqual(saved.first?.duration, duration)
+        TestSupport.expectEqual(saved.first?.segments.map(\.speaker), speakers)
+    }
+
+    @MainActor
+    private static func callEndedAutoStopSavesWithoutCopying() async {
+        let harness = Harness()
+        let recorder = harness.recorder
+        let startedAt = harness.clock
+        await recorder.start()
+        TestSupport.expect(recorder.isWatchingForAutoStop, "A recording watches for auto-stop")
+        harness.callApps = ["Google Chrome"]
+        harness.play(them: tone(1) + silence(1), me: room(2))
+        await harness.settle()
+        await recorder.checkAutoStop()
+        harness.callApps = []
+        harness.clock = startedAt + 4
+        await recorder.checkAutoStop()
+        harness.clock = startedAt + 33
+        await recorder.checkAutoStop()
+        TestSupport.expectEqual(recorder.phase, .recording)
+        harness.clock = startedAt + 34
+        await recorder.checkAutoStop()
+        expectAutoSaved(harness, notice: "Meeting saved: call ended", duration: 34, speakers: [.them])
+
+        // The next recording starts without the old call: no call app now means no call-ended stop.
+        let nextStart = harness.clock
+        await recorder.start()
+        harness.clock = nextStart + 40
+        await recorder.checkAutoStop()
+        TestSupport.expectEqual(recorder.phase, .recording)
+        await recorder.stop()
+    }
+
+    @MainActor
+    private static func silenceAutoStopFollowsLatestSpeaker() async {
+        let harness = Harness()
+        let recorder = harness.recorder
+        let startedAt = harness.clock
+        await recorder.start()
+        // Them speaks 0-1 s, me 3-5 s: the silence clock runs from 5 s.
+        harness.play(them: tone(1) + silence(5), me: room(3) + tone(2) + room(1))
+        await harness.settle()
+        harness.clock = startedAt + 604.5
+        await recorder.checkAutoStop()
+        TestSupport.expectEqual(recorder.phase, .recording)
+        harness.clock = startedAt + 605.5
+        await recorder.checkAutoStop()
+        expectAutoSaved(harness, notice: "Meeting saved: no one talking", duration: 605.5, speakers: [.them, .me])
+    }
+
+    @MainActor
+    private static func silentAutoStopKeepsNoSpeechError() async {
+        let harness = Harness()
+        let recorder = harness.recorder
+        let startedAt = harness.clock
+        await recorder.start()
+        harness.clock = startedAt + 599.5
+        await recorder.checkAutoStop()
+        TestSupport.expectEqual(recorder.phase, .recording)
+        harness.clock = startedAt + 600
+        await recorder.checkAutoStop()
+        TestSupport.expectEqual(recorder.phase, .idle)
+        TestSupport.expectEqual(recorder.errorMessage, "No speech was picked up, so nothing was saved.")
+        TestSupport.expect(recorder.toast == nil, "Nothing saved, so no saved notice")
+        TestSupport.expect(harness.copied.isEmpty, "Nothing copied")
+        TestSupport.expect(harness.store.loadAll().isEmpty && recorder.meetings.isEmpty, "Nothing saved")
+    }
+
+    @MainActor
+    private static func sleepAutoStopSavesWithoutCopying() async {
+        let harness = Harness()
+        let recorder = harness.recorder
+        let startedAt = harness.clock
+        NotificationCenter.default.post(name: NSWorkspace.willSleepNotification, object: nil)
+        await recorder.start()
+        harness.play(them: tone(1) + silence(1), me: room(2))
+        await harness.settle()
+        NotificationCenter.default.post(name: NSWorkspace.willSleepNotification, object: nil)
+        await harness.settle()
+        TestSupport.expectEqual(recorder.phase, .recording)
+        harness.clock = startedAt + 3
+        harness.sleepNotifications.post(name: NSWorkspace.willSleepNotification, object: nil)
+        await harness.settle { recorder.phase == .idle }
+        expectAutoSaved(harness, notice: "Meeting saved: Mac went to sleep", duration: 3, speakers: [.them])
+        harness.sleepNotifications.post(name: NSWorkspace.willSleepNotification, object: nil)
+        await harness.settle()
+        TestSupport.expectEqual(harness.store.loadAll().count, 1)
+    }
+
+    @MainActor
+    private static func hardCapStopsALongMeeting() async {
+        let harness = Harness()
+        let recorder = harness.recorder
+        let startedAt = harness.clock
+        await recorder.start()
+        harness.callApps = ["Zoom"]
+        harness.clock = startedAt + 14_390
+        harness.play(them: tone(1) + silence(1), me: room(2))
+        await harness.settle()
+        harness.clock = startedAt + 14_399.5
+        await recorder.checkAutoStop()
+        TestSupport.expectEqual(recorder.phase, .recording)
+        harness.clock = startedAt + 14_400
+        await recorder.checkAutoStop()
+        expectAutoSaved(harness, notice: "Meeting saved: 4 hour limit", duration: 14_400, speakers: [.them])
+    }
+
+    @MainActor
+    private static func autoStopSaveFailureSaysSo() async {
+        let harness = Harness()
+        let recorder = harness.recorder
+        await recorder.start()
+        harness.play(them: tone(1) + silence(1), me: room(2))
+        await harness.settle()
+        try? FileManager.default.removeItem(at: harness.directory)
+        FileManager.default.createFile(atPath: harness.directory.path, contents: Data())
+        await recorder.autoStop(.callEnded)
+        TestSupport.expectEqual(recorder.phase, .idle)
+        TestSupport.expectEqual(recorder.errorMessage, "Couldn't save this meeting.")
+        TestSupport.expect(recorder.toast == nil, "No saved notice when saving failed")
+        TestSupport.expect(harness.copied.isEmpty, "Auto-stop never touches the clipboard")
+    }
+
+    @MainActor
+    private static func timerRunsTheAutoStopCheck() async {
+        let harness = Harness()
+        harness.autoStopCheckInterval = 0.05
+        let recorder = harness.recorder
+        await recorder.start()
+        harness.clock += MeetingAutoStopPolicy.silenceSeconds
+        await harness.settle { recorder.phase == .idle }
+        TestSupport.expectEqual(recorder.phase, .idle)
+        TestSupport.expectEqual(recorder.errorMessage, "No speech was picked up, so nothing was saved.")
+        TestSupport.expect(!recorder.isWatchingForAutoStop, "The timer is gone after the auto-stop")
+    }
+
+    @MainActor
+    private static func echoOnlyMeChunkIsDropped() async {
+        let harness = Harness()
+        harness.echo = [0...10]
+        await harness.recorder.start()
+        let tone = MeetingTranscriptCoreTests.tone, silence = MeetingTranscriptCoreTests.silence
+        harness.play(them: tone(3, 0.2) + silence(5), me: silence(0.5) + tone(2, 0.2) + silence(5.5))
+        await harness.settle { harness.transcriber.calls == 1 }
+        await harness.recorder.stop()
+        TestSupport.expectEqual(harness.transcriber.calls, 1)
+        TestSupport.expectEqual(harness.copied, ["Them: 3 seconds"])
+    }
+
+    @MainActor
+    private static func echoAtTheStartOfMeIsTrimmed() async {
+        let harness = Harness()
+        harness.echo = [0...2.5]
+        await harness.recorder.start()
+        let tone = MeetingTranscriptCoreTests.tone, silence = MeetingTranscriptCoreTests.silence
+        harness.play(them: tone(2, 0.2) + silence(7), me: silence(1) + tone(3, 0.2) + silence(5))
+        await harness.settle()
+        await harness.recorder.stop()
+        let me = harness.store.loadAll().first?.segments.first { $0.speaker == .me }
+        TestSupport.expect(me != nil, "Speech after the echo is kept")
+        TestSupport.expectApproximatelyEqual(me?.start ?? 0, 2.5, accuracy: 0.11)
+    }
+
+    @MainActor
+    private static func meWaitsForTheEchoGateWhileThemTalks() async {
+        let harness = Harness()
+        await harness.recorder.start()
+        let tone = MeetingTranscriptCoreTests.tone, silence = MeetingTranscriptCoreTests.silence
+        // Me audio ends at 3.6 s with its kept pause; it may only upload once the clock passes 7.1 s.
+        harness.play(them: tone(2, 0.2) + silence(4.6), me: silence(1.5) + tone(1.5, 0.2) + silence(3.6))
+        await harness.settle { harness.transcriber.calls == 1 }
+        TestSupport.expectEqual(harness.recorder.liveSegments.map(\.speaker), [.them])
+        harness.play(them: [], me: silence(0.6))
+        await harness.settle { harness.transcriber.calls == 2 }
+        TestSupport.expectEqual(harness.recorder.liveSegments.map(\.speaker), [.them, .me])
+        await harness.recorder.stop()
+    }
+
+    @MainActor
+    private static func meUploadsRightAwayWhenThemWasQuiet() async {
+        let harness = Harness()
+        await harness.recorder.start()
+        let tone = MeetingTranscriptCoreTests.tone, silence = MeetingTranscriptCoreTests.silence
+        // Them stopped at 1 s, more than the 2.5 s echo reach before Me audio starts at 3.8 s.
+        harness.play(them: tone(1, 0.2) + silence(6.1), me: silence(4) + tone(1, 0.2) + silence(2.1))
+        await harness.settle { harness.transcriber.calls == 2 }
+        TestSupport.expectEqual(harness.recorder.liveSegments.map(\.speaker), [.them, .me])
+        await harness.recorder.stop()
     }
 
     @MainActor
@@ -211,6 +452,7 @@ enum MeetingRecorderTests {
         TestSupport.expectEqual(recorder.phase, .recording)
         TestSupport.expectEqual(recorder.startedAt, harness.clock)
         TestSupport.expectEqual(harness.micAsked, 1)
+        TestSupport.expect(recorder.isWatchingForAutoStop, "A recording watches for auto-stop")
 
         harness.clock += 1
         harness.them.emit(MeetingTranscriptCoreTests.tone(seconds: 1))
@@ -232,6 +474,7 @@ enum MeetingRecorderTests {
         TestSupport.expectEqual(harness.copied, ["Them: 1 seconds\nMe: 10 seconds"])
         TestSupport.expectEqual(recorder.toast, "Copied to clipboard")
         TestSupport.expect(recorder.errorMessage == nil, "A good meeting has no error")
+        TestSupport.expect(!recorder.isWatchingForAutoStop, "A manual stop ends auto-stop watching")
 
         let saved = harness.store.loadAll()
         TestSupport.expectEqual(saved.count, 1)

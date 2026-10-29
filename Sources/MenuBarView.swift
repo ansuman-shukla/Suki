@@ -63,10 +63,15 @@ struct MenuBarView: View {
             Divider()
 
             if !appState.hasScreenRecordingPermission {
+                let screenRecordingLost = appState.permissionWasLost(.screenRecording)
                 Button {
-                    appState.requestScreenCapturePermission()
+                    if screenRecordingLost {
+                        appState.repairPermission(.screenRecording)
+                    } else {
+                        appState.requestScreenCapturePermission()
+                    }
                 } label: {
-                    Label("Screen Recording Permission Needed", systemImage: "camera.viewfinder")
+                    Label(screenRecordingLost ? "Repair Screen Recording Permission" : "Screen Recording Permission Needed", systemImage: "camera.viewfinder")
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
@@ -84,7 +89,7 @@ struct MenuBarView: View {
                 Button {
                     appState.showAccessibilityAlert()
                 } label: {
-                    Label("Accessibility Required", systemImage: "exclamationmark.triangle.fill")
+                    Label(appState.permissionWasLost(.accessibility) ? "Accessibility Needs Repair" : "Accessibility Required", systemImage: "exclamationmark.triangle.fill")
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
