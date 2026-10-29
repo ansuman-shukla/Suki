@@ -88,12 +88,33 @@ defaults delete com.ansumanshukla.suki context_request_timeout_seconds
 
 </details>
 
+## Let your AI agent read your meetings
+
+Suki ships a small, read-only [MCP](https://modelcontextprotocol.io) server, so coding agents and AI apps can look up the meetings you've recorded. It gives them three tools: `list_meetings`, `search_meetings`, and `read_meeting`. It can't change or delete anything, it never touches the network, and it only runs while your agent is using it.
+
+Add it to your agent's MCP config:
+
+```json
+{
+  "mcpServers": {
+    "suki-meetings": {
+      "command": "/Applications/Suki.app/Contents/MacOS/suki-mcp"
+    }
+  }
+}
+```
+
+To read the meetings of a different Suki build, add `"args": ["--app", "Suki Dev"]`.
+
+Whatever your agent reads, it sends to its own AI provider. Only connect agents you trust with your meeting transcripts.
+
 ## Privacy
 
 - **No Suki server.** There's no account, no sign-up, and no tracking. Suki has no server to send your data to.
 - **Your voice goes only where you send it.** Audio and text go straight to the AI provider you choose. Use local models, and nothing leaves your Mac at all.
 - **Your stuff stays on your Mac.** Dictation history and meeting transcripts are saved locally, and your API keys are stored in the macOS Keychain.
 - **You control context.** If you allow Screen Recording, Suki sends a screenshot of the app you're dictating into to your AI provider, so it can spell names right. Skip that permission and Suki works without it.
+- **Agents only see meetings if you connect them.** The meetings MCP server is off until you add it to an agent's config, and it's read-only.
 
 ## FAQ
 
