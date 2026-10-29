@@ -22,8 +22,11 @@ final class MeetingRecorder: ObservableObject {
     private let makeTranscriber: () throws -> SpeechToTextService
     private let makeSources: () throws -> [MeetingAudioSource]
     private let authorizeMicrophone: () async -> Bool
+    private let callAppsUsingMicrophone: () -> Set<String>
     private let copyToClipboard: @MainActor (String) -> Void
     private let makeEchoGate: () -> any MeetingEchoFiltering
+    private let sleepNotifications: NotificationCenter
+    private let autoStopCheckInterval: TimeInterval
     private let now: () -> Date
     private var sources: [MeetingAudioSource] = []
     private var queue: MeetingTranscriptionQueue?
@@ -37,22 +40,34 @@ final class MeetingRecorder: ObservableObject {
     private var heldMeChunks: [MeetingAudioChunk] = []
     private var echoDroppedChunks = 0
     private var toastTask: Task<Void, Never>?
+    private var autoStopPolicy = MeetingAutoStopPolicy()
+    private var autoStopTimer: Timer?
+    private var sleepObserver: NSObjectProtocol?
+
+    /// The periodic auto-stop check or the sleep observer is installed.
+    var isWatchingForAutoStop: Bool { autoStopTimer != nil || sleepObserver != nil }
 
     init(
         store: MeetingStore = MeetingStore(),
         makeTranscriber: @escaping () throws -> SpeechToTextService,
         makeSources: @escaping () throws -> [MeetingAudioSource],
         authorizeMicrophone: @escaping () async -> Bool = MeetingRecorder.authorizeMicrophone,
+        callAppsUsingMicrophone: @escaping () -> Set<String>,
         copyToClipboard: @escaping @MainActor (String) -> Void = MeetingRecorder.copyToClipboard,
         makeEchoGate: @escaping () -> any MeetingEchoFiltering = { MeetingEchoGate() },
+        sleepNotifications: NotificationCenter = NSWorkspace.shared.notificationCenter,
+        autoStopCheckInterval: TimeInterval = 2,
         now: @escaping () -> Date = Date.init
     ) {
         self.store = store
         self.makeTranscriber = makeTranscriber
         self.makeSources = makeSources
         self.authorizeMicrophone = authorizeMicrophone
+        self.callAppsUsingMicrophone = callAppsUsingMicrophone
         self.copyToClipboard = copyToClipboard
         self.makeEchoGate = makeEchoGate
+        self.sleepNotifications = sleepNotifications
+        self.autoStopCheckInterval = autoStopCheckInterval
         self.now = now
         meetings = store.loadAll()
     }
@@ -86,6 +101,7 @@ final class MeetingRecorder: ObservableObject {
                 try startCapture(source, startedAt: startedAt)
             }
             phase = .recording
+            watchForAutoStop()
             os_log(.info, log: meetingLog, "Meeting started with sources: %{public}@",
                    sources.map(\.speaker.rawValue).joined(separator: ","))
         } catch {
@@ -98,8 +114,31 @@ final class MeetingRecorder: ObservableObject {
     }
 
     func stop() async {
+        await finish(autoStopReason: nil)
+    }
+
+    /// Stops by itself: saves like a manual stop, but shows why instead of copying the transcript.
+    func autoStop(_ reason: MeetingAutoStopReason) async {
+        guard phase == .recording else { return }
+        os_log(.info, log: meetingLog, "Meeting auto-stopped: %{public}@", reason.rawValue)
+        await finish(autoStopReason: reason)
+    }
+
+    /// Applies the auto-stop rules once. Runs every couple of seconds while recording.
+    func checkAutoStop() async {
+        guard phase == .recording, let startedAt else { return }
+        guard let reason = autoStopPolicy.update(
+            elapsed: now().timeIntervalSince(startedAt),
+            callApps: callAppsUsingMicrophone(),
+            lastSpeechTime: buffers.values.compactMap(\.lastSpeechTime).max()
+        ) else { return }
+        await autoStop(reason)
+    }
+
+    private func finish(autoStopReason: MeetingAutoStopReason?) async {
         guard phase == .recording, let startedAt, let queue else { return }
         phase = .finishing
+        stopWatchingForAutoStop()
         sources.forEach { $0.stop() }
         sources = []
         let duration = now().timeIntervalSince(startedAt)
@@ -130,11 +169,12 @@ final class MeetingRecorder: ObservableObject {
             segments: segments
         )
         meetings.insert(meeting, at: 0)
-        copy(meeting)
+        if autoStopReason == nil { copy(meeting) }
         do {
             try store.save(meeting)
+            if let autoStopReason { showToast(autoStopReason.notice) }
         } catch {
-            errorMessage = "Copied, but couldn't save this meeting."
+            errorMessage = autoStopReason == nil ? "Copied, but couldn't save this meeting." : "Couldn't save this meeting."
         }
     }
 
@@ -235,6 +275,33 @@ final class MeetingRecorder: ObservableObject {
                 os_log(.error, log: meetingLog, "Meeting mic restart failed: %{public}@", String(describing: error))
             }
         }
+    }
+
+    private func watchForAutoStop() {
+        let timer = Timer(timeInterval: autoStopCheckInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                Task { await self.checkAutoStop() }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        autoStopTimer = timer
+        sleepObserver = sleepNotifications.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                Task { await self.autoStop(.systemSleep) }
+            }
+        }
+    }
+
+    private func stopWatchingForAutoStop() {
+        autoStopTimer?.invalidate()
+        autoStopTimer = nil
+        if let sleepObserver { sleepNotifications.removeObserver(sleepObserver) }
+        sleepObserver = nil
+        autoStopPolicy = MeetingAutoStopPolicy()
     }
 
     private func reset() {

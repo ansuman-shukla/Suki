@@ -120,9 +120,11 @@ enum MeetingTranscriptCore {
 
     /// Like `merged`, but keeps each speaker's sentences apart so they can render as separate bubbles.
     static func turns(_ segments: [MeetingSegment]) -> [MeetingTurn] {
+        // Creating an NLTokenizer costs far more than tokenizing one segment, so share one per call.
+        let tokenizer = NLTokenizer(unit: .sentence)
         var result: [MeetingTurn] = []
         for segment in ordered(segments) {
-            let parts = sentences(in: segment.text)
+            let parts = sentences(in: segment.text, using: tokenizer)
             guard !parts.isEmpty else { continue }
             if let last = result.last, last.speaker == segment.speaker {
                 result[result.count - 1].sentences += parts
@@ -133,8 +135,7 @@ enum MeetingTranscriptCore {
         return result
     }
 
-    static func sentences(in text: String) -> [String] {
-        let tokenizer = NLTokenizer(unit: .sentence)
+    static func sentences(in text: String, using tokenizer: NLTokenizer = NLTokenizer(unit: .sentence)) -> [String] {
         tokenizer.string = text
         return tokenizer.tokens(for: text.startIndex..<text.endIndex)
             .map { text[$0].trimmingCharacters(in: .whitespacesAndNewlines) }

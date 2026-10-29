@@ -75,10 +75,10 @@ struct SystemSettingsPane: View {
                     micPermissionGranted = granted
                 }
             }
-            permissionRow("Accessibility", granted: appState.hasAccessibility) {
+            repairablePermissionRow(.accessibility, granted: appState.hasAccessibility) {
                 appState.openAccessibilitySettings()
             }
-            permissionRow("Screen Recording", granted: appState.hasScreenRecordingPermission) {
+            repairablePermissionRow(.screenRecording, granted: appState.hasScreenRecordingPermission) {
                 appState.requestScreenCapturePermission()
             }
         }
@@ -94,6 +94,19 @@ struct SystemSettingsPane: View {
                 Button("Grant Access", action: action)
                     .buttonStyle(.settings)
             }
+        }
+    }
+
+    /// A stale grant still looks enabled in System Settings, so offer Repair instead of sending the user back there.
+    @ViewBuilder
+    private func repairablePermissionRow(_ permission: PrivacyPermission, granted: Bool, grant: @escaping () -> Void) -> some View {
+        if !granted && appState.permissionWasLost(permission) {
+            SettingsRow(permission.displayName, detail: "macOS no longer honors the earlier grant") {
+                Button("Repair") { appState.repairPermission(permission) }
+                    .buttonStyle(.settings)
+            }
+        } else {
+            permissionRow(permission.displayName, granted: granted, action: grant)
         }
     }
 

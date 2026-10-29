@@ -9,10 +9,18 @@ empty :=
 space := $(empty) $(empty)
 APP_EXECUTABLE = $(MACOS_DIR)/$(APP_NAME)
 APP_EXECUTABLE_TARGET := $(subst $(space),\ ,$(APP_EXECUTABLE))
+# Meetings MCP server: a separate stdio tool shipped next to the app executable.
+MCP_SOURCES = $(shell find MCP -name '*.swift' -type f | LC_ALL=C sort) \
+	Sources/AppName.swift \
+	Sources/MeetingStore.swift \
+	Sources/MeetingTranscriptCore.swift
+MCP_EXECUTABLE = $(MACOS_DIR)/suki-mcp
+MCP_EXECUTABLE_TARGET := $(subst $(space),\ ,$(MCP_EXECUTABLE))
 
 SOURCES = $(shell find Sources -name '*.swift' -type f | LC_ALL=C sort)
 TEST_RUNNER = $(BUILD_DIR)/SukiTests
 TEST_PRODUCTION_SOURCES = \
+	MCP/MeetingsMCPServer.swift \
 	Sources/APIProvider.swift \
 	Sources/AppAppearance.swift \
 	Sources/AppContextService.swift \
@@ -34,6 +42,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/LiveTranscriptionSession.swift \
 	Sources/LiveTypingCore.swift \
 	Sources/MeetingAudioCapture.swift \
+	Sources/MeetingAutoStopCore.swift \
 	Sources/MeetingMicWatchdog.swift \
 	Sources/MeetingRecorder.swift \
 	Sources/MeetingStore.swift \
@@ -41,6 +50,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/MeetingTranscriptionPipeline.swift \
 	Sources/ModelConfiguration.swift \
 	Sources/ModifierKeyEventState.swift \
+	Sources/PermissionRepair.swift \
 	Sources/PipelineHistoryItem.swift \
 	Sources/PostProcessingService.swift \
 	Sources/RealtimeTranscriptionService.swift \
@@ -85,11 +95,34 @@ endif
 INSTALL_DIR ?= /Applications
 INSTALLED_APP = $(INSTALL_DIR)/$(APP_NAME).app
 
+# macOS ties privacy grants (Accessibility, Screen Recording, Microphone) to the
+# bundle ID plus its signing certificate. A production-ID build signed by any
+# other certificate silently invalidates every user's grants, so only the
+# "Suki Release" certificate (SHA-1 below) may sign this bundle ID.
+RELEASE_BUNDLE_ID = com.ansumanshukla.suki
+RELEASE_CERT_SHA1 = 7003a85059bc0f7b214a0c32a1708de082791f00
+
 .PHONY: all check clean run install icon dmg codesign-dmg notarize test typecheck validate
 
 all: $(APP_EXECUTABLE_TARGET)
 
-$(APP_EXECUTABLE_TARGET): $(SOURCES) Info.plist $(ICON_ICNS) $(SOUND_FILES)
+# Nested code must be signed before the bundle seals it.
+$(MCP_EXECUTABLE_TARGET): $(MCP_SOURCES)
+	@mkdir -p "$(MACOS_DIR)"
+ifeq ($(ARCH),universal)
+	swiftc -o "$(MCP_EXECUTABLE)-arm64" -sdk $(shell xcrun --show-sdk-path) \
+		-target arm64-apple-macosx13.0 $(MCP_SOURCES)
+	swiftc -o "$(MCP_EXECUTABLE)-x86_64" -sdk $(shell xcrun --show-sdk-path) \
+		-target x86_64-apple-macosx13.0 $(MCP_SOURCES)
+	lipo -create -output "$(MCP_EXECUTABLE)" "$(MCP_EXECUTABLE)-arm64" "$(MCP_EXECUTABLE)-x86_64"
+	@rm "$(MCP_EXECUTABLE)-arm64" "$(MCP_EXECUTABLE)-x86_64"
+else
+	swiftc -o "$(MCP_EXECUTABLE)" -sdk $(shell xcrun --show-sdk-path) \
+		-target $(ARCH)-apple-macosx13.0 $(MCP_SOURCES)
+endif
+	@codesign --force --options runtime --identifier "$(BUNDLE_ID).mcp" --sign "$(CODESIGN_IDENTITY)" "$(MCP_EXECUTABLE)"
+
+$(APP_EXECUTABLE_TARGET): $(SOURCES) Info.plist $(ICON_ICNS) $(SOUND_FILES) $(MCP_EXECUTABLE_TARGET)
 	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES)"
 ifeq ($(ARCH),universal)
 	swiftc \
@@ -128,6 +161,11 @@ endif
 	@plutil -replace NSSpeechRecognitionUsageDescription -string "$(APP_NAME) needs speech recognition to convert your voice to text." "$(CONTENTS)/Info.plist"
 	@plutil -replace NSAccessibilityUsageDescription -string "$(APP_NAME) needs accessibility access to detect the text cursor position and paste transcribed text." "$(CONTENTS)/Info.plist"
 	@codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" --entitlements Suki.entitlements "$(APP_BUNDLE)"
+	@if [ "$(BUNDLE_ID)" = "$(RELEASE_BUNDLE_ID)" ] && ! codesign -d -r- "$(APP_BUNDLE)" 2>&1 | grep -Eq 'certificate (root|leaf) = H"$(RELEASE_CERT_SHA1)"'; then \
+		rm -rf "$(APP_BUNDLE)"; \
+		echo "error: $(RELEASE_BUNDLE_ID) must be signed with the Suki Release certificate; other signatures break users' macOS permissions. Build the default Suki Dev bundle instead." >&2; \
+		exit 1; \
+	fi
 	@echo "Built $(APP_BUNDLE)"
 
 check: typecheck test validate
@@ -140,6 +178,12 @@ typecheck:
 		-sdk $(shell xcrun --show-sdk-path) \
 		-target $(ARCH)-apple-macosx13.0 \
 		$(SOURCES)
+	swiftc \
+		-typecheck \
+		-warnings-as-errors \
+		-sdk $(shell xcrun --show-sdk-path) \
+		-target $(ARCH)-apple-macosx13.0 \
+		$(MCP_SOURCES)
 
 test:
 	@mkdir -p "$(BUILD_DIR)"
@@ -219,6 +263,10 @@ run: all
 # Spotlight. Permission grants carry over because they follow the signing
 # identity, not the bundle path.
 install: all
+	@if codesign -dv "$(APP_BUNDLE)" 2>&1 | grep -q 'adhoc'; then \
+		echo "error: refusing to install an ad-hoc signed build; macOS drops its permissions on every rebuild. Run 'make clean' and build with a stable identity such as the default Suki Dev." >&2; \
+		exit 1; \
+	fi
 	@osascript -e 'tell application id "$(BUNDLE_ID)" to quit' >/dev/null 2>&1 || true
 	@while pgrep -xq "$(APP_NAME)"; do sleep 0.2; done
 	@rm -rf "$(INSTALLED_APP)"

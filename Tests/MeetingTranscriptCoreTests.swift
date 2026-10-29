@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 
 enum MeetingTranscriptCoreTests {
     private static let rate = Int(MeetingTranscriptCore.sampleRate)
@@ -33,6 +34,7 @@ enum MeetingTranscriptCoreTests {
         clipboardTextFormatsSpeakersAndOptionalTimestamps()
         turnsSplitSentencesAndFoldSameSpeaker()
         turnsDropBlankTextAndKeepFailedChunkAsOneLine()
+        sentencesReuseOneTokenizerAcrossTexts()
         speakerDisplayNamesDifferFromCopiedLabels()
         transcriptSummaryCountsSpeakersWithText()
         timeLabelUsesLowercaseMeridiem()
@@ -156,6 +158,25 @@ enum MeetingTranscriptCoreTests {
         TestSupport.expectEqual(turns.map(\.sentences), [[MeetingTranscriptCore.failedChunkText, "Okay."]])
         TestSupport.expectEqual(MeetingTranscriptCore.turns([]), [])
         TestSupport.expectEqual(MeetingTranscriptCore.sentences(in: "No ending punctuation"), ["No ending punctuation"])
+    }
+
+    /// `turns` shares one tokenizer across segments, so a shorter text must not pick up the previous one.
+    private static func sentencesReuseOneTokenizerAcrossTexts() {
+        let tokenizer = NLTokenizer(unit: .sentence)
+        TestSupport.expectEqual(
+            MeetingTranscriptCore.sentences(in: "A longer synthetic opening line. Then a second one.", using: tokenizer),
+            ["A longer synthetic opening line.", "Then a second one."]
+        )
+        TestSupport.expectEqual(MeetingTranscriptCore.sentences(in: "Short.", using: tokenizer), ["Short."])
+        TestSupport.expectEqual(MeetingTranscriptCore.sentences(in: " ", using: tokenizer), [])
+        TestSupport.expectEqual(
+            MeetingTranscriptCore.turns([
+                segment(.me, 0, "First synthetic thought here. And more."),
+                segment(.them, 5, "Yes."),
+                segment(.them, 6, "Agreed. Ship it.")
+            ]).map(\.sentences),
+            [["First synthetic thought here.", "And more."], ["Yes.", "Agreed.", "Ship it."]]
+        )
     }
 
     private static func speakerDisplayNamesDifferFromCopiedLabels() {

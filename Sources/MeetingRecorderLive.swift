@@ -14,7 +14,14 @@ extension MeetingRecorder {
                     MeetingMicrophoneSource(deviceUID: appState?.selectedMicrophoneID),
                     SystemAudioTapSource(),
                 ]
-            }
+            },
+            callAppsUsingMicrophone: MeetingRecorder.callAppsUsingMicrophone
         )
+    }
+
+    /// Call apps holding the mic, for the call-ended auto-stop. Never logged or stored.
+    nonisolated static func callAppsUsingMicrophone() -> Set<String> {
+        guard #available(macOS 14.2, *) else { return [] }
+        return MicUsageMonitor.callAppsUsingMicrophone()
     }
 }
